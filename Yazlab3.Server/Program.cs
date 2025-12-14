@@ -3,32 +3,62 @@ using Yazlab3.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-
-builder.Services.AddControllers();
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
+// 1. Veritabaný Baðlantýsý
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
+
+// 2. CORS Ýzni (Frontend portun 5173 görünüyor, ona izin veriyoruz)
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowReactApp",
+        policy =>
+        {
+            policy.WithOrigins("http://localhost:5173")
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
+        });
+});
+
+builder.Services.AddControllers();
+// RouteOptimizer servisini sisteme tanýtýyoruz
+builder.Services.AddScoped<Yazlab3.Services.RouteOptimizer>();
+// Swagger servislerini ekliyoruz
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
 var app = builder.Build();
 
-app.UseDefaultFiles();
-app.MapStaticAssets();
-
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+// Veritabaný Seed Ýþlemi (Otomatik veri ekleme)
+using (var scope = app.Services.CreateScope())
 {
-    app.MapOpenApi();
+    var services = scope.ServiceProvider;
+    try
+    {
+        var context = services.GetRequiredService<AppDbContext>();
+        context.Database.Migrate();
+        DbSeeder.Seed(context);
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine("Veritabaný oluþturma hatasý: " + ex.Message);
+    }
 }
 
-app.UseHttpsRedirection();
+// 3. Middleware Sýralamasý (Burasý Çok Önemli)
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+
+
+// CORS komutu Authorization'dan ÖNCE gelmeli!
+app.UseCors("AllowReactApp");
 
 app.UseAuthorization();
 
 app.MapControllers();
-
-app.MapFallbackToFile("/index.html");
 
 app.Run();

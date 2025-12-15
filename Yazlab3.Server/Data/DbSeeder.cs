@@ -7,12 +7,23 @@ namespace Yazlab3.Data
     {
         public static void Seed(AppDbContext context)
         {
-            // Veritabanı boşsa (daha önce eklenmemişse) çalışır
+            // 1. Admin Kullanıcısını Kontrol Et
+            if (!context.Users.Any(u => u.Username == "admin"))
+            {
+                context.Users.Add(new User { Username = "admin", Password = "123", Role = "Admin" });
+            }
+
+            // 2. Müşteri Kullanıcısını Kontrol Et
+            if (!context.Users.Any(u => u.Username == "musteri"))
+            {
+                context.Users.Add(new User { Username = "musteri", Password = "123", Role = "User" });
+            }
+
+            // 3. İstasyonlar (Boşsa ekle)
             if (!context.Stations.Any())
             {
                 var stations = new Station[]
-                {
-                    // Koordinatlar kullanıcı tarafından sağlanan hassas değerlerle güncellendi
+               {
                     new Station { Name = "Başiskele", Latitude = 40.71513273972544m, Longitude = 29.934585966660965m },
                     new Station { Name = "Çayırova", Latitude = 40.82396766160747m, Longitude = 29.372155170239854m },
                     new Station { Name = "Darıca", Latitude = 40.7740807309172m, Longitude = 29.400001319983225m },
@@ -25,27 +36,18 @@ namespace Yazlab3.Data
                     new Station { Name = "Kartepe", Latitude = 40.7536768705129m, Longitude = 30.022951946737017m },
                     new Station { Name = "Körfez", Latitude = 40.776506186755334m, Longitude = 29.737449477805065m },
                     new Station { Name = "İzmit", Latitude = 40.76542858316974m, Longitude = 29.940887296574914m }
-                };
+               };
                 context.Stations.AddRange(stations);
             }
 
-            // Başlangıç Araçları (PDF Madde 3: Başlangıçta 3 araç var, kiralama maliyeti yok)
+            // 4. Araçlar (Boşsa ekle)
             if (!context.Vehicles.Any())
             {
-                var vehicles = new Vehicle[]
-                {
-                    // Kapasiteler: 500, 750, 1000 kg
-                    new Vehicle { Name = "Araç 1 (500kg)", CapacityKg = 500, FuelCostPerKm = 1, RentalCost = 0, IsRented = false },
-                    new Vehicle { Name = "Araç 2 (750kg)", CapacityKg = 750, FuelCostPerKm = 1, RentalCost = 0, IsRented = false },
-                    new Vehicle { Name = "Araç 3 (1000kg)", CapacityKg = 1000, FuelCostPerKm = 1, RentalCost = 0, IsRented = false }
-                };
-                context.Vehicles.AddRange(vehicles);
-            }
-
-            // Yönetici Hesabı (Test için)
-            if (!context.Users.Any())
-            {
-                context.Users.Add(new User { Username = "admin", Password = "123", Role = "Admin" });
+                context.Vehicles.AddRange(
+                    new Vehicle { Name = "Araç 1 (500kg)", CapacityKg = 500, FuelCostPerKm = 1, RentalCost = 0 },
+                    new Vehicle { Name = "Araç 2 (750kg)", CapacityKg = 750, FuelCostPerKm = 1, RentalCost = 0 },
+                    new Vehicle { Name = "Araç 3 (1000kg)", CapacityKg = 1000, FuelCostPerKm = 1, RentalCost = 0 }
+                );
             }
 
             context.SaveChanges();

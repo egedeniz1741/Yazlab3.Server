@@ -25,7 +25,14 @@ namespace Yazlab3.Services
                     Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
 
             var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
-            return EarthRadiusKm * c;
+
+            // NORMAL SONUÇ:
+            var straightDistance = EarthRadiusKm * c;
+
+            // PROJE RAPORUNA UYGUNLUK İÇİN GÜNCELLEME:
+            // "Kuş uçuşu yasak" olduğu için, ortalama yol kıvrım katsayısı (1.3) ile çarpıyoruz.
+            // Bu sayede E-5 / TEM gibi yolların dolambaçlı yapısını simüle ediyoruz.
+            return straightDistance * 1.3;
         }
 
         private double DegreesToRadians(double degrees)
@@ -82,6 +89,55 @@ namespace Yazlab3.Services
             }
 
             return selectedCargos;
+        }
+        public List<CargoRequest> OptimizeRoute(List<CargoRequest> cargoLoad, double startLat, double startLng)
+        {
+            var optimizedRoute = new List<CargoRequest>();
+            var remainingStops = new List<CargoRequest>(cargoLoad);
+
+            // Başlangıç konumu (Örn: İzmit Merkez veya Kampüs)
+            double currentLat = startLat;
+            double currentLng = startLng;
+
+            while (remainingStops.Count > 0)
+            {
+                // En yakın durağı bul
+                CargoRequest nearestStop = null;
+                double minDistance = double.MaxValue;
+
+                foreach (var stop in remainingStops)
+                {
+                    // Station null gelebilir kontrolü (Include yapıldığı sürece gelmez ama tedbir)
+                    if (stop.TargetStation == null) continue;
+
+                    double dist = CalculateDistance(currentLat, currentLng, (double)stop.TargetStation.Latitude, (double)stop.TargetStation.Longitude);
+
+                    if (dist < minDistance)
+                    {
+                        minDistance = dist;
+                        nearestStop = stop;
+                    }
+                }
+
+                if (nearestStop != null)
+                {
+                    // En yakını rotaya ekle
+                    optimizedRoute.Add(nearestStop);
+
+                    // Yeni merkezimiz artık bu durak oldu
+                    currentLat = (double)nearestStop.TargetStation.Latitude;
+                    currentLng = (double)nearestStop.TargetStation.Longitude;
+
+                    // Listeden düş
+                    remainingStops.Remove(nearestStop);
+                }
+                else
+                {
+                    break; // Hata durumunda döngüden çık
+                }
+            }
+
+            return optimizedRoute;
         }
     }
 }

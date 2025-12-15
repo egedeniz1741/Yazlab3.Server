@@ -33,5 +33,23 @@ namespace Yazlab3.Controllers
             await _context.SaveChangesAsync();
             return CreatedAtAction("GetStations", new { id = station.Id }, station);
         }
+        // DELETE: api/stations/5
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteStation(int id)
+        {
+            var station = await _context.Stations.FindAsync(id);
+            if (station == null)
+            {
+                return NotFound("İstasyon bulunamadı.");
+            }
+
+            // Eğer bu istasyon bir kargo talebinde veya rotada kullanılıyorsa hata verebilir.
+            // Lab projesi olduğu için şimdilik doğrudan siliyoruz, 
+            // ama ilişkili veriler (Cascade Delete) veritabanı ayarına bağlıdır.
+            _context.Stations.Remove(station);
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
     }
 }

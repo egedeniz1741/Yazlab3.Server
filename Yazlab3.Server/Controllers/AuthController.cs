@@ -1,60 +1,59 @@
-﻿// Controllers/AuthController.cs (ASP.NET Core API)
-
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore; // DbContext işlemleri için gerekli
-using System.Threading.Tasks;
-using Yazlab3.Data;                 // AppDbContext'e erişim için
-using Yazlab3.Models;                // User modeline erişim için
+﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Yazlab3.Data;
+using Yazlab3.DTOs; // Az önce oluşturduğumuz klasör
+using Yazlab3.Models;
 
 namespace Yazlab3.Controllers
 {
-    [ApiController]
     [Route("api/[controller]")]
+    [ApiController]
     public class AuthController : ControllerBase
     {
         private readonly AppDbContext _context;
 
-        // Dependency Injection ile AppDbContext'i buraya alıyoruz.
         public AuthController(AppDbContext context)
         {
             _context = context;
         }
 
-        // Basit Kimlik Doğrulama Modeli (Bu kısım zaten vardı, aynı kalır)
-        public class LoginModel
-        {
-            public string Username { get; set; }
-            public string Password { get; set; }
-        }
-
-        // Giriş işlemi
+        // POST: api/auth/login
         [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] LoginModel model)
+        public async Task<ActionResult<LoginResponseDto>> Login([FromBody] LoginRequestDto request)
         {
-            if (string.IsNullOrEmpty(model.Username) || string.IsNullOrEmpty(model.Password))
+            // 1. Kullanıcı adı ve şifre boş mu kontrol et
+            if (string.IsNullOrEmpty(request.Username) || string.IsNullOrEmpty(request.Password))
             {
-                return BadRequest(new { success = false, message = "Kullanıcı adi ve sifre zorunludur." });
+                return BadRequest(new LoginResponseDto
+                {
+                    Success = false,
+                    Message = "Kullanıcı adı ve şifre zorunludur."
+                });
             }
 
-            // 1. Veri tabanında kullanıcıyı ara
+            // 2. Veritabanında kullanıcıyı bul
+            // (Büyük/Küçük harf duyarlılığını kaldırmak için ToLower kullanabiliriz ama şimdilik birebir eşleşsin)
             var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Username == model.Username);
+                .FirstOrDefaultAsync(u => u.Username == request.Username);
 
-            // 2. Kullanıcı kontrolü ve şifre doğrulaması
-            // (Güvenlik nedeniyle şifreler hash'lenmelidir, ancak burada düz metin karşılaştırması yapılmıştır.)
-            if (user == null || user.Password != model.Password)
+            // 3. Kullanıcı yoksa veya şifre yanlışsa
+            if (user == null || user.Password != request.Password)
             {
-                // Giriş başarısız
-                return Unauthorized(new { success = false, message = "Kullanici adi veya sifre hatali." });
+                return Unauthorized(new LoginResponseDto
+                {
+                    Success = false,
+                    Message = "Hatalı kullanıcı adı veya şifre!"
+                });
             }
 
-            // 3. Giriş başarılı, rol bilgisini döndür
-            // Rolü küçük harfe çeviriyoruz, React tarafındaki 'admin' ve 'user' karşılaştırmasına uyması için.
-            return Ok(new
+            // 4. Giriş Başarılı! DTO ile temiz veri dönüyoruz.
+            return Ok(new LoginResponseDto
             {
-                success = true,
-                role = user.Role.ToLower(),
-                message = $"{user.Role} girisi başarıli."
+                Success = true,
+                Message = "Giriş başarılı.",
+                Id = user.Id,                 // <--- KRİTİK NOKTA: ID'yi gönderiyoruz
+                Role = user.Role.ToLower(),   // Frontend'de 'admin' kontrolü için küçültüyoruz
+                Username = user.Username
             });
         }
     }

@@ -235,10 +235,53 @@ namespace Yazlab3.Controllers
                 .OrderByDescending(r => r.RouteDate)
                 .ToListAsync();
 
-            // Eğer hiç rota yoksa boş liste dön (404 dönme!)
-            if (routes == null) return Ok(new List<DeliveryRoute>());
+            // Burası Kritik: RouteStop içinde direkt kargo sahibi bilgisi yok.
+            // Ama biz RouteStop'a "LoadedCargoWeight" yazarken hangi kargodan aldığımızı biliyorduk.
+            // Rapor için şu anlık basit bir çözüm yapacağız:
+            // "Bu durakta inen yükler, o ilçeye kargo gönderen müşterilere aittir."
 
-            return Ok(routes);
+            // DTO (Veri Transfer Modeli) hazırlayalım
+            var result = new List<object>();
+
+            foreach (var route in routes)
+            {
+                var stopsData = new List<object>();
+
+                foreach (var stop in route.Stops.OrderBy(s => s.VisitOrder))
+                {
+                    // Bu durak (ilçe) için bekleyen ve "İşlenmiş" olan kargoları bul
+                    // Not: Bu tam %100 eşleşme sağlamaz ama simülasyon için yeterlidir.
+                    // Gerçek çözüm için RouteStop tablosuna CargoRequestId eklememiz gerekirdi (Veritabanı değişimi gerekir).
+                    // Şimdilik ilçeye göre müşteri listeliyoruz:
+
+                    var customers = await _context.CargoRequests
+                        .Include(c => c.User)
+                        .Where(c => c.TargetStationId == stop.StationId && c.IsProcessed == true)
+                        .Select(c => c.User.Username)
+                        .Distinct()
+                        .ToListAsync();
+
+                    stopsData.Add(new
+                    {
+                        stop.Id,
+                        stop.VisitOrder,
+                        stop.LoadedCargoWeight,
+                        StationName = stop.Station.Name,
+                        Customers = customers // Müşteri isimleri listesi
+                    });
+                }
+
+                result.Add(new
+                {
+                    route.Id,
+                    route.TotalDistanceKm,
+                    route.TotalCost,
+                    Vehicle = route.Vehicle,
+                    Stops = stopsData
+                });
+            }
+
+            return Ok(result);
         }
     }
 

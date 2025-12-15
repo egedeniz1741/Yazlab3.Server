@@ -1,72 +1,64 @@
 ﻿import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom'; // Yönlendirme için eklendi
+import { useNavigate } from 'react-router-dom'; // Yönlendirme için gerekli
 import MapDisplay from '../Components/MapDisplay';
 
-// Backend'den gelecek istasyon tipi
-interface Station {
-    id: number;
-    name: string;
-}
+interface Station { id: number; name: string; }
+interface MyCargo { id: number; targetStation: string; cargoCount: number; weightKg: number; date: string; status: string; }
 
 const UserPanel = () => {
-    // --- YÖNLENDİRME KANCASI ---
-    const navigate = useNavigate();
+    const navigate = useNavigate(); // Hook'u tanımla
 
-    // State Tanımları
     const [stations, setStations] = useState<Station[]>([]);
+    const [myCargos, setMyCargos] = useState<MyCargo[]>([]);
     const [selectedStationId, setSelectedStationId] = useState<number | string>("");
     const [cargoCount, setCargoCount] = useState(0);
     const [weight, setWeight] = useState(0);
     const [message, setMessage] = useState("");
     const [isSuccess, setIsSuccess] = useState(false);
 
-    // Sayfa açılınca İstasyonları Çek
     useEffect(() => {
-        fetch('http://localhost:5054/api/stations')
-            .then(res => res.json())
-            .then(data => setStations(data))
-            .catch(err => console.error("İstasyonlar çekilemedi", err));
+        // İstasyonları Çek
+        fetch('http://localhost:5054/api/stations').then(res => res.json()).then(data => setStations(data));
+
+        // Kargolarımı Çek
+        fetchMyCargos();
     }, []);
 
-    // --- ÇIKIŞ YAP FONKSİYONU ---
-    const handleLogout = () => {
-        // Oturum bilgilerini temizle (Gerekliyse)
-        localStorage.removeItem('userId'); // Kullanıcı ID'sini temizle
-        // localStorage.removeItem('userToken'); // Eğer JWT kullanılıyorsa
-
-        // Login sayfasına yönlendir (Ana Sayfa rotası "/")
-        navigate('/');
+    const fetchMyCargos = () => {
+        const userId = localStorage.getItem("userId");
+        if (userId) {
+            fetch(`http://localhost:5054/api/CargoRequests/user/${userId}`)
+                .then(res => res.json())
+                .then(data => setMyCargos(data))
+                .catch(err => console.error(err));
+        } else {
+            // Eğer ID yoksa direkt login'e at
+            navigate('/');
+        }
     };
 
-    // Kargo Ekleme Fonksiyonu
     const handleAddCargo = async (e: React.FormEvent) => {
         e.preventDefault();
         setMessage("");
         setIsSuccess(false);
 
-        // 1. Giriş yapan kullanıcının ID'sini tarayıcı hafızasından al
-        // Login ekranında başarılı girişten sonra buraya kaydedildiğini varsayıyoruz.
         const storedUserId = localStorage.getItem("userId");
-
-        // Eğer kullanıcı giriş yapmamışsa veya ID yoksa durdur
         if (!storedUserId) {
-            setMessage("❌ Oturum bilgisi bulunamadı. Lütfen tekrar giriş yapın.");
+            setMessage("❌ Oturum süresi dolmuş.");
+            setTimeout(() => navigate('/'), 2000);
             return;
         }
 
-        // 2. Form doğrulama
         if (!selectedStationId || cargoCount <= 0 || weight <= 0) {
-            setMessage("⚠️ Lütfen istasyon seçin ve pozitif değerler girin.");
+            setMessage("⚠️ Lütfen tüm alanları doldurun.");
             return;
         }
 
-        // 3. Gönderilecek Veriyi Hazırla (Backend bu formatı bekliyor)
         const newRequest = {
             userId: Number(storedUserId),
             targetStationId: Number(selectedStationId),
             cargoCount: Number(cargoCount),
             weightKg: Number(weight),
-            // Backend'in otomatik oluşturmadığı durumlarda gönderilebilir, aksi halde backend'in oluşturması daha iyidir.
             deliveryDate: new Date().toISOString(),
             isProcessed: false
         };
@@ -79,122 +71,119 @@ const UserPanel = () => {
             });
 
             if (response.ok) {
-                setMessage("✅ Kargo talebi başarıyla oluşturuldu!");
+                setMessage("✅ Kargo talebi alındı!");
                 setIsSuccess(true);
-                // Formu sıfırla
-                setCargoCount(0);
-                setWeight(0);
-                setSelectedStationId("");
+                setCargoCount(0); setWeight(0); setSelectedStationId("");
+                fetchMyCargos(); // Listeyi anında güncelle
             } else {
-                const errorData = await response.json().catch(() => null);
-                console.error("Hata Detayı:", errorData);
-                setMessage(`❌ Hata: ${errorData?.title || "İstek reddedildi (400)."}`);
+                setMessage("❌ Hata oluştu.");
             }
-        } catch (error) {
-            console.error("Fetch Hatası:", error);
-            setMessage("❌ Sunucuya erişilemedi.");
+        } catch (error) { setMessage("❌ Sunucu hatası."); }
+    };
+
+    // --- ÇIKIŞ YAP FONKSİYONU ---
+    const handleLogout = () => {
+        if (window.confirm("Çıkış yapmak istediğinize emin misiniz?")) {
+            // Hafızayı temizle
+            localStorage.removeItem("userId");
+            localStorage.removeItem("userRole");
+            localStorage.removeItem("username");
+
+            // Login'e gönder
+            navigate('/');
         }
     };
 
     return (
-        <div style={{ display: 'flex', height: '100vh', flexDirection: 'row' }}>
-            {/* SOL TARAF: FORM PANELİ */}
-            <div style={{ width: '350px', padding: '30px', borderRight: '1px solid #ddd', backgroundColor: '#fff' }}>
+        <div style={{ display: 'flex', height: '100vh', flexDirection: 'row', backgroundColor: '#f4f6f9' }}>
 
-                {/* --- BAŞLIK VE ÇIKIŞ BUTONU ALANI --- */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '10px', borderBottom: '1px solid #eee' }}>
-                    <h2 style={{ margin: 0 }}>📦 Kargo Gönder</h2>
-                    {/* YENİ: Çıkış Yap Butonu */}
-                    <button
-                        onClick={handleLogout}
-                        style={{ padding: '8px 15px', backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}
-                        title="Sistemden Çıkış Yap"
-                    >
-                        Çıkış Yap ➡️
-                    </button>
+            {/* SOL: İŞLEM PANELİ */}
+            <div style={{ width: '400px', padding: '30px', backgroundColor: '#fff', borderRight: '1px solid #ddd', display: 'flex', flexDirection: 'column', gap: '25px', overflowY: 'auto' }}>
+
+                {/* Başlık ve Hoşgeldin Mesajı */}
+                <div style={{ borderBottom: '1px solid #eee', paddingBottom: '15px' }}>
+                    <h2 style={{ margin: '0', color: '#2c3e50' }}>Kullanıcı Paneli</h2>
+                    <p style={{ margin: '5px 0 0 0', color: '#7f8c8d', fontSize: '14px' }}>Hoşgeldiniz, kargo işlemlerinizi buradan yönetebilirsiniz.</p>
                 </div>
-                {/* ------------------------------------- */}
 
-                <p style={{ fontSize: '14px', color: '#666', marginBottom: '20px' }}>
-                    Aşağıdaki formu doldurarak kargo talebi oluşturabilirsiniz.
-                </p>
+                {/* 1. Kargo Ekleme Formu */}
+                <div style={{ padding: '20px', border: '1px solid #e0e0e0', borderRadius: '10px', backgroundColor: '#fafafa' }}>
+                    <h4 style={{ margin: '0 0 15px 0', color: '#34495e' }}>📦 Yeni Kargo Gönder</h4>
+                    <form onSubmit={handleAddCargo} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                        <div>
+                            <label style={{ fontWeight: 'bold', fontSize: '13px', display: 'block', marginBottom: '5px' }}>Hedef İstasyon:</label>
+                            <select style={{ width: '100%', padding: '10px', border: '1px solid #ccc', borderRadius: '5px' }} value={selectedStationId} onChange={(e) => setSelectedStationId(e.target.value)}>
+                                <option value="">Seçiniz...</option>
+                                {stations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                            </select>
+                        </div>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            <div style={{ flex: 1 }}>
+                                <label style={{ fontWeight: 'bold', fontSize: '13px', display: 'block', marginBottom: '5px' }}>Adet:</label>
+                                <input type="number" min="1" style={{ width: '100%', padding: '10px', border: '1px solid #ccc', borderRadius: '5px', boxSizing: 'border-box' }} value={cargoCount || ''} onChange={(e) => setCargoCount(Number(e.target.value))} />
+                            </div>
+                            <div style={{ flex: 1 }}>
+                                <label style={{ fontWeight: 'bold', fontSize: '13px', display: 'block', marginBottom: '5px' }}>Ağırlık (kg):</label>
+                                <input type="number" min="1" style={{ width: '100%', padding: '10px', border: '1px solid #ccc', borderRadius: '5px', boxSizing: 'border-box' }} value={weight || ''} onChange={(e) => setWeight(Number(e.target.value))} />
+                            </div>
+                        </div>
+                        <button type="submit" style={{ padding: '12px', backgroundColor: '#3498db', color: 'white', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer', transition: '0.3s' }}>Talebi Gönder</button>
+                    </form>
+                    {message && <div style={{ marginTop: '15px', padding: '10px', borderRadius: '5px', backgroundColor: isSuccess ? '#d4edda' : '#f8d7da', color: isSuccess ? '#155724' : '#721c24', fontSize: '13px', textAlign: 'center' }}>{message}</div>}
+                </div>
 
-                <form onSubmit={handleAddCargo} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-
-                    {/* İstasyon Seçimi */}
-                    <div>
-                        <label style={{ fontWeight: 'bold', fontSize: '14px' }}>Hedef İstasyon:</label>
-                        <select
-                            style={{ width: '100%', padding: '10px', marginTop: '5px', borderRadius: '5px', border: '1px solid #ccc' }}
-                            value={selectedStationId}
-                            onChange={(e) => setSelectedStationId(e.target.value)}
-                        >
-                            <option value="">Seçiniz...</option>
-                            {stations.map(s => (
-                                <option key={s.id} value={s.id}>{s.name}</option>
-                            ))}
-                        </select>
+                {/* 2. Geçmiş Kargolar Listesi */}
+                <div style={{ flex: 1, minHeight: '200px' }}>
+                    <h4 style={{ margin: '0 0 10px 0', color: '#34495e' }}>📋 Geçmiş Gönderilerim</h4>
+                    <div style={{ maxHeight: '250px', overflowY: 'auto', border: '1px solid #eee', borderRadius: '10px' }}>
+                        {myCargos.length === 0 ? <p style={{ padding: '20px', color: '#999', textAlign: 'center', fontSize: '13px' }}>Henüz kargo kaydınız yok.</p> : (
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                                <thead style={{ backgroundColor: '#f8f9fa', textAlign: 'left', color: '#7f8c8d', position: 'sticky', top: 0 }}>
+                                    <tr>
+                                        <th style={{ padding: '10px', borderBottom: '1px solid #ddd' }}>Hedef</th>
+                                        <th style={{ padding: '10px', borderBottom: '1px solid #ddd' }}>Detay</th>
+                                        <th style={{ padding: '10px', borderBottom: '1px solid #ddd' }}>Durum</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {myCargos.map(c => (
+                                        <tr key={c.id} style={{ borderBottom: '1px solid #f1f1f1' }}>
+                                            <td style={{ padding: '10px', fontWeight: 'bold' }}>{c.targetStation}</td>
+                                            <td style={{ padding: '10px' }}>{c.weightKg} kg <br /><span style={{ color: '#999' }}>({c.cargoCount} ad)</span></td>
+                                            <td style={{ padding: '10px' }}>
+                                                <span style={{
+                                                    padding: '3px 8px', borderRadius: '12px', fontSize: '10px', fontWeight: 'bold', display: 'inline-block',
+                                                    backgroundColor: c.status.includes("Yolda") ? '#d4edda' : '#fff3cd',
+                                                    color: c.status.includes("Yolda") ? '#155724' : '#856404'
+                                                }}>
+                                                    {c.status}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
                     </div>
+                </div>
 
-                    {/* Kargo Adedi */}
-                    <div>
-                        <label style={{ fontWeight: 'bold', fontSize: '14px' }}>Kargo Adedi:</label>
-                        <input
-                            type="number"
-                            min="1"
-                            style={{ width: '100%', padding: '10px', marginTop: '5px', borderRadius: '5px', border: '1px solid #ccc' }}
-                            value={cargoCount || ''}
-                            onChange={(e) => setCargoCount(Number(e.target.value))}
-                        />
-                    </div>
+                {/* ÇIKIŞ BUTONU (EN ALTTA) */}
+                <button
+                    onClick={handleLogout}
+                    style={{
+                        marginTop: 'auto', padding: '12px', backgroundColor: '#e74c3c', color: 'white',
+                        border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px'
+                    }}
+                >
+                    🚪 Güvenli Çıkış Yap
+                </button>
 
-                    {/* Ağırlık */}
-                    <div>
-                        <label style={{ fontWeight: 'bold', fontSize: '14px' }}>Toplam Ağırlık (kg):</label>
-                        <input
-                            type="number"
-                            min="1"
-                            style={{ width: '100%', padding: '10px', marginTop: '5px', borderRadius: '5px', border: '1px solid #ccc' }}
-                            value={weight || ''}
-                            onChange={(e) => setWeight(Number(e.target.value))}
-                        />
-                    </div>
-
-                    <button
-                        type="submit"
-                        style={{
-                            padding: '12px',
-                            backgroundColor: '#007bff',
-                            color: 'white',
-                            border: 'none',
-                            cursor: 'pointer',
-                            borderRadius: '5px',
-                            fontWeight: 'bold',
-                            marginTop: '10px'
-                        }}
-                    >
-                        Talebi Ekle
-                    </button>
-                </form>
-
-                {message && (
-                    <div style={{
-                        marginTop: '20px',
-                        padding: '10px',
-                        borderRadius: '5px',
-                        backgroundColor: isSuccess ? '#d4edda' : '#f8d7da',
-                        color: isSuccess ? '#155724' : '#721c24',
-                        fontWeight: '500'
-                    }}>
-                        {message}
-                    </div>
-                )}
             </div>
 
-            {/* SAĞ TARAF: HARİTA */}
-            <div style={{ flex: 1, padding: '20px', backgroundColor: '#f9f9f9' }}>
-                <h3 style={{ marginBottom: '15px' }}>Canlı İstasyon Haritası</h3>
-                <div style={{ height: 'calc(100% - 50px)', border: '2px solid #ccc', borderRadius: '8px', overflow: 'hidden' }}>
+            {/* SAĞ: HARİTA */}
+            <div style={{ flex: 1, padding: '20px' }}>
+                <div style={{ height: '100%', border: '2px solid #ddd', borderRadius: '12px', overflow: 'hidden', backgroundColor: 'white', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }}>
                     <MapDisplay />
                 </div>
             </div>

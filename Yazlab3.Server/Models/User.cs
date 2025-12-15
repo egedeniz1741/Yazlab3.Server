@@ -16,6 +16,8 @@ namespace Yazlab3.Models
         [Required]
         public string Role { get; set; } = "User"; // "Admin" veya "User"
 
+        public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
+
         // Kullanıcının kargo talepleri
         public virtual ICollection<CargoRequest> CargoRequests { get; set; }
     }

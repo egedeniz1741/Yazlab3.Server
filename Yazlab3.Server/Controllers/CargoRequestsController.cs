@@ -52,5 +52,48 @@ namespace Yazlab3.Controllers
 
             return CreatedAtAction("GetCargoRequests", new { id = request.Id }, request);
         }
+        [HttpGet("user/{userId}")]
+        public async Task<ActionResult<IEnumerable<object>>> GetUserRequests(int userId)
+        {
+            var requests = await _context.CargoRequests
+                .Include(c => c.TargetStation)
+                .Where(c => c.UserId == userId)
+                .OrderByDescending(c => c.DeliveryDate) // En yeniden eskiye
+                .ToListAsync();
+
+            // Kargoların hangi araçta olduğunu bulmak için DeliveryRoutes ile eşleştirmemiz lazım.
+            // Bu biraz maliyetli bir sorgu ama kullanıcı panelinde detay görmek için şart.
+            // Basit yöntem: Her kargo için RouteStop tablosuna gidip "Bu istasyona giden rota var mı?" diye bakacağız.
+
+            // NOT: Daha performanslı olması için CargoRequest tablosuna "AssignedRouteId" eklenebilirdi.
+            // Ancak mevcut yapıyı bozmadan şöyle bir DTO dönelim:
+
+            var result = new List<object>();
+
+            foreach (var req in requests)
+            {
+                string status = "Beklemede";
+                string vehicleInfo = "-";
+
+                if (req.IsProcessed)
+                {
+                    status = "Yolda / Planlandı";
+                    // Hangi araçta olduğunu bulmaya çalışalım (Opsiyonel, karmaşıksa atlayabiliriz)
+                    // Şimdilik sadece statü gösterelim, yeterli olacaktır.
+                }
+
+                result.Add(new
+                {
+                    req.Id,
+                    TargetStation = req.TargetStation?.Name ?? "Bilinmiyor",
+                    req.CargoCount,
+                    req.WeightKg,
+                    Date = req.DeliveryDate.ToString("dd.MM.yyyy HH:mm"),
+                    Status = status
+                });
+            }
+
+            return Ok(result);
+        }
     }
 }

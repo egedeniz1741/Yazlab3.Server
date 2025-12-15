@@ -1,4 +1,5 @@
 ﻿import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom'; // Yönlendirme için eklendi
 import MapDisplay from '../Components/MapDisplay';
 
 // Backend'den gelecek istasyon tipi
@@ -8,6 +9,9 @@ interface Station {
 }
 
 const UserPanel = () => {
+    // --- YÖNLENDİRME KANCASI ---
+    const navigate = useNavigate();
+
     // State Tanımları
     const [stations, setStations] = useState<Station[]>([]);
     const [selectedStationId, setSelectedStationId] = useState<number | string>("");
@@ -24,6 +28,16 @@ const UserPanel = () => {
             .catch(err => console.error("İstasyonlar çekilemedi", err));
     }, []);
 
+    // --- ÇIKIŞ YAP FONKSİYONU ---
+    const handleLogout = () => {
+        // Oturum bilgilerini temizle (Gerekliyse)
+        localStorage.removeItem('userId'); // Kullanıcı ID'sini temizle
+        // localStorage.removeItem('userToken'); // Eğer JWT kullanılıyorsa
+
+        // Login sayfasına yönlendir (Ana Sayfa rotası "/")
+        navigate('/');
+    };
+
     // Kargo Ekleme Fonksiyonu
     const handleAddCargo = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -31,6 +45,7 @@ const UserPanel = () => {
         setIsSuccess(false);
 
         // 1. Giriş yapan kullanıcının ID'sini tarayıcı hafızasından al
+        // Login ekranında başarılı girişten sonra buraya kaydedildiğini varsayıyoruz.
         const storedUserId = localStorage.getItem("userId");
 
         // Eğer kullanıcı giriş yapmamışsa veya ID yoksa durdur
@@ -47,10 +62,11 @@ const UserPanel = () => {
 
         // 3. Gönderilecek Veriyi Hazırla (Backend bu formatı bekliyor)
         const newRequest = {
-            userId: Number(storedUserId),      // String gelen ID'yi sayıya çevir
+            userId: Number(storedUserId),
             targetStationId: Number(selectedStationId),
             cargoCount: Number(cargoCount),
             weightKg: Number(weight),
+            // Backend'in otomatik oluşturmadığı durumlarda gönderilebilir, aksi halde backend'in oluşturması daha iyidir.
             deliveryDate: new Date().toISOString(),
             isProcessed: false
         };
@@ -70,7 +86,6 @@ const UserPanel = () => {
                 setWeight(0);
                 setSelectedStationId("");
             } else {
-                // Backend'den dönen hata detayını okumaya çalışalım
                 const errorData = await response.json().catch(() => null);
                 console.error("Hata Detayı:", errorData);
                 setMessage(`❌ Hata: ${errorData?.title || "İstek reddedildi (400)."}`);
@@ -85,7 +100,21 @@ const UserPanel = () => {
         <div style={{ display: 'flex', height: '100vh', flexDirection: 'row' }}>
             {/* SOL TARAF: FORM PANELİ */}
             <div style={{ width: '350px', padding: '30px', borderRight: '1px solid #ddd', backgroundColor: '#fff' }}>
-                <h2 style={{ marginBottom: '10px' }}>📦 Kargo Gönder</h2>
+
+                {/* --- BAŞLIK VE ÇIKIŞ BUTONU ALANI --- */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '10px', borderBottom: '1px solid #eee' }}>
+                    <h2 style={{ margin: 0 }}>📦 Kargo Gönder</h2>
+                    {/* YENİ: Çıkış Yap Butonu */}
+                    <button
+                        onClick={handleLogout}
+                        style={{ padding: '8px 15px', backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}
+                        title="Sistemden Çıkış Yap"
+                    >
+                        Çıkış Yap ➡️
+                    </button>
+                </div>
+                {/* ------------------------------------- */}
+
                 <p style={{ fontSize: '14px', color: '#666', marginBottom: '20px' }}>
                     Aşağıdaki formu doldurarak kargo talebi oluşturabilirsiniz.
                 </p>

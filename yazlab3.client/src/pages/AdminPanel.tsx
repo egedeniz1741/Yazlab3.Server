@@ -1,4 +1,5 @@
 ﻿import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import MapDisplay from '../Components/MapDisplay';
 
 // --- TİP TANIMLAMALARI ---
@@ -26,6 +27,9 @@ interface Station {
 // -------------------------
 
 const AdminPanel = () => {
+    // --- YÖNLENDİRME KANCASI ---
+    const navigate = useNavigate();
+
     // --- STATE'LER ---
     const [status, setStatus] = useState("");
     const [routes, setRoutes] = useState<DeliveryRoute[]>([]);
@@ -42,7 +46,24 @@ const AdminPanel = () => {
         fetchStations();
     }, []);
 
-    // --- VERİ ÇEKME FONKSİYONLARI ---
+    // --- İŞLEM FONKSİYONLARI ---
+
+    // 1. ÇIKIŞ YAP FONKSİYONU
+    const handleLogout = () => {
+        // Oturum bilgilerini temizle (Gerekirse)
+        // localStorage.removeItem('userToken');
+        // localStorage.removeItem('userRole');
+
+        // Login sayfasına yönlendir (Ana Sayfa)
+        navigate('/');
+    };
+
+    // 2. KULLANICI EKLE FONKSİYONU
+    const handleGoToAddUser = () => {
+        // Yeni Kullanıcı Ekleme paneline yönlendir
+        navigate('/admin-panel/add-user');
+    };
+
     const fetchRoutes = async () => {
         try {
             const res = await fetch('http://localhost:5054/api/Optimization/routes');
@@ -56,8 +77,6 @@ const AdminPanel = () => {
             if (res.ok) setStations(await res.json());
         } catch (err) { console.error(err); }
     };
-
-    // --- İŞLEM FONKSİYONLARI ---
 
     // 1. İSTASYON EKLEME
     const handleAddStation = async (e: React.FormEvent) => {
@@ -76,7 +95,7 @@ const AdminPanel = () => {
                 alert("✅ İstasyon başarıyla eklendi.");
                 setNewStationName(""); setNewLat(""); setNewLng("");
                 fetchStations();
-                window.location.reload(); // Haritayı güncellemek için
+                window.location.reload();
             }
         } catch (err) { alert("Hata oluştu."); }
     };
@@ -104,7 +123,6 @@ const AdminPanel = () => {
             if (res.ok) {
                 setStatus(`✅ ${data.message}`);
                 fetchRoutes();
-                // Haritayı güncellemek için kısa bir gecikme ile yenileme
                 setTimeout(() => window.location.reload(), 1500);
             } else {
                 setStatus("❌ " + data.message);
@@ -123,7 +141,6 @@ const AdminPanel = () => {
     const loadScenario = async (id: number) => {
         if (!window.confirm(`Senaryo ${id} yüklenecek. Mevcut veriler temizlensin mi?`)) return;
 
-        // Önce temizlik yap
         await fetch('http://localhost:5054/api/scenario/reset', { method: 'DELETE' });
 
         setStatus(`⏳ Senaryo ${id} verileri yükleniyor...`);
@@ -162,7 +179,7 @@ const AdminPanel = () => {
 
                     <div style={{ width: '1px', height: '30px', backgroundColor: '#ddd' }}></div>
 
-                    {/* Ana Aksiyonlar */}
+                    {/* Ana Aksiyonlar (Hesapla/Temizle) */}
                     <div style={{ gap: '10px', display: 'flex' }}>
                         <button onClick={resetSystem} style={{ padding: '10px 20px', backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>
                             🗑️ Temizle
@@ -171,6 +188,27 @@ const AdminPanel = () => {
                             🚀 Hesapla
                         </button>
                     </div>
+
+                    <div style={{ width: '1px', height: '30px', backgroundColor: '#ddd' }}></div>
+
+                    {/* YENİ: Kullanıcı Ekle Butonu */}
+                    <button
+                        onClick={handleGoToAddUser}
+                        style={{ padding: '10px 20px', backgroundColor: '#3498db', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}
+                        title="Yeni Kullanıcı Tanımla"
+                    >
+                        ➕ Kullanıcı Ekle
+                    </button>
+
+                    {/* YENİ: Çıkış Yap Butonu */}
+                    <button
+                        onClick={handleLogout}
+                        style={{ padding: '10px 20px', backgroundColor: '#95a5a6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}
+                        title="Sistemden Çıkış Yap"
+                    >
+                        ➡️ Çıkış Yap
+                    </button>
+
                 </div>
             </div>
 
@@ -234,7 +272,7 @@ const AdminPanel = () => {
                                         {routes.map(r => {
                                             const totalLoad = r.stops.reduce((sum, s) => sum + s.loadedCargoWeight, 0);
                                             const rentCost = r.vehicle.rentalCost;
-                                            
+
 
                                             return (
                                                 <tr key={r.id} style={{ borderBottom: '1px solid #eee' }}>

@@ -1,6 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System; // Exception için gerekli
 using Yazlab3.Data;
 using Yazlab3.Models;
 using Yazlab3.Services;
@@ -25,25 +24,12 @@ namespace Yazlab3.Controllers
         {
             try
             {
-                // Veri tabanı takibini temizle (Hataları önler)
                 _context.ChangeTracker.Clear();
+                var pendingCargos = await _context.CargoRequests.Include(c => c.TargetStation).Where(c => !c.IsProcessed).ToListAsync();
+                if (!pendingCargos.Any()) return Ok(new { Message = "Taşınacak kargo yok." });
 
-                // 1. Bekleyen Kargoları Çek
-                var pendingCargos = await _context.CargoRequests
-                    .Include(c => c.TargetStation)
-                    .Where(c => !c.IsProcessed)
-                    .ToListAsync();
+                var availableVehicles = await _context.Vehicles.Where(v => !v.IsRented).OrderByDescending(v => v.CapacityKg).ToListAsync();
 
-                if (!pendingCargos.Any())
-                    return Ok(new { Message = "Taşınacak kargo yok." });
-
-                // 2. Mevcut Araçları Çek
-                var availableVehicles = await _context.Vehicles
-                    .Where(v => !v.IsRented)
-                    .OrderByDescending(v => v.CapacityKg)
-                    .ToListAsync();
-
-                // İşlenecek kargoları hafızaya al (Wrapper sınıfı ile)
                 var processingItems = pendingCargos.Select(c => new ProcessingItem
                 {
                     OriginalCargoId = c.Id,
@@ -55,68 +41,40 @@ namespace Yazlab3.Controllers
                 double depotLng = 29.9408;
                 int routesCreated = 0;
 
-                // --- AŞAMA 1: MEVCUT FİLO ---
                 foreach (var vehicle in availableVehicles)
                 {
                     if (!processingItems.Any()) break;
-
-                    // Aracı doldur
                     var loadPlan = FillVehicle(processingItems, vehicle.CapacityKg);
-
                     if (loadPlan.Any())
                     {
-                        // Rotayı kaydet
                         await SaveRouteToDb(vehicle, loadPlan, depotLat, depotLng);
                         routesCreated++;
-
-                        // Tamamen biten kargoları listeden sil
                         processingItems.RemoveAll(x => x.RemainingWeight <= 0.1);
                     }
                 }
 
-                // --- AŞAMA 2: KİRALIK ARAÇLAR ---
                 if (useRentedVehicles && processingItems.Any())
                 {
                     int rentCounter = 1;
                     while (processingItems.Any())
                     {
-                        double rentalCap = 500; // Sabit Kapasite
+                        var loadPlan = FillVehicle(processingItems, 500); // Kiralık Kapasite
+                        if (!loadPlan.Any()) break;
 
-                        // Kiralık aracı doldur
-                        var loadPlan = FillVehicle(processingItems, rentalCap);
-
-                        if (!loadPlan.Any()) break; // Sonsuz döngü koruması
-
-                        // Kiralık Araç Oluştur
-                        var rentalVehicle = new Vehicle
-                        {
-                            Name = $"Kiralık Araç {rentCounter}",
-                            CapacityKg = (int)rentalCap,
-                            FuelCostPerKm = 1,
-                            IsRented = true,
-                            RentalCost = 200
-                        };
+                        var rentalVehicle = new Vehicle { Name = $"Kiralık Araç {rentCounter}", CapacityKg = 500, FuelCostPerKm = 1, IsRented = true, RentalCost = 200 };
                         _context.Vehicles.Add(rentalVehicle);
                         await _context.SaveChangesAsync();
 
-                        // Rotayı kaydet
                         await SaveRouteToDb(rentalVehicle, loadPlan, depotLat, depotLng);
                         routesCreated++;
-
-                        // Bitenleri sil
                         processingItems.RemoveAll(x => x.RemainingWeight <= 0.1);
                         rentCounter++;
                     }
                 }
 
-                // --- AŞAMA 3: DURUM GÜNCELLEME ---
-                // Eğer bir kargonun ağırlığı tamamen bittiyse "IsProcessed = true" yap
-                var allOriginalIds = pendingCargos.Select(c => c.Id).ToList();
                 var remainingIds = processingItems.Select(p => p.OriginalCargoId).ToList();
-
                 foreach (var cargo in pendingCargos)
                 {
-                    // Eğer kalanlar listesinde yoksa, işi bitmiştir.
                     if (!remainingIds.Contains(cargo.Id))
                     {
                         cargo.IsProcessed = true;
@@ -124,58 +82,72 @@ namespace Yazlab3.Controllers
                     }
                 }
                 await _context.SaveChangesAsync();
-
-                return Ok(new { Message = $"{routesCreated} adet rota başarıyla oluşturuldu." });
+                return Ok(new { Message = $"{routesCreated} adet rota oluşturuldu." });
             }
             catch (Exception ex)
             {
-                // Hata olursa patlamak yerine mesaj dön
-                return StatusCode(500, new { Message = "Hata oluştu: " + ex.Message, Detail = ex.StackTrace });
+                return StatusCode(500, new { Message = "Hata: " + ex.Message });
             }
         }
 
-        // --- YARDIMCI METOTLAR ---
+        // --- DÜZELTİLEN METOT ---
+        [HttpGet("routes")]
+        public async Task<ActionResult> GetRoutes()
+        {
+            var routes = await _context.DeliveryRoutes
+                .Include(r => r.Vehicle)
+                .Include(r => r.Stops).ThenInclude(s => s.Station)
+                .OrderByDescending(r => r.RouteDate)
+                .ToListAsync();
 
-        // Araca sığacak yükleri seçen ve gerekirse bölen algoritma
-        private List<ProcessingItem> FillVehicle(List<ProcessingItem> items, double vehicleCapacity)
+            var result = new List<object>();
+            foreach (var route in routes)
+            {
+                var stopsData = new List<object>();
+                foreach (var stop in route.Stops.OrderBy(s => s.VisitOrder))
+                {
+                    var customers = await _context.CargoRequests
+                        .Include(c => c.User)
+                        .Where(c => c.TargetStationId == stop.StationId && c.IsProcessed == true)
+                        .Select(c => c.User.Username).Distinct().ToListAsync();
+
+                    stopsData.Add(new
+                    {
+                        stop.Id,
+                        stop.VisitOrder,
+                        stop.LoadedCargoWeight,
+                        StationName = stop.Station.Name,
+                        Station = stop.Station, // <--- HARİTA İÇİN BU LAZIM
+                        Customers = customers
+                    });
+                }
+                result.Add(new { route.Id, route.TotalDistanceKm, route.TotalCost, Vehicle = route.Vehicle, Stops = stopsData });
+            }
+            return Ok(result);
+        }
+
+        private List<ProcessingItem> FillVehicle(List<ProcessingItem> items, double capacity)
         {
             var selected = new List<ProcessingItem>();
             double currentLoad = 0;
-
-            // Büyükten küçüğe sırala (Daha iyi doluluk için)
-            // Not: Referans üzerinden çalıştığımız için items listesindeki nesneler güncellenir
-            var sortedCandidates = items.OrderByDescending(i => i.RemainingWeight).ToList();
-
-            foreach (var item in sortedCandidates)
+            foreach (var item in items.OrderByDescending(i => i.RemainingWeight))
             {
-                double spaceLeft = vehicleCapacity - currentLoad;
-
-                if (spaceLeft <= 0.1) break; // Yer kalmadı
-
-                // Ne kadar yükleyebiliriz?
-                // Ya tamamını alırız ya da kalan boşluk kadarını
-                double amountToTake = Math.Min(item.RemainingWeight, spaceLeft);
-
-                // Yükleme yap
-                item.LoadedAmountForCurrentRide = amountToTake; // Bu seferlik yüklenen miktar
-                item.RemainingWeight -= amountToTake;           // Kalan miktar güncellendi
-
+                double spaceLeft = capacity - currentLoad;
+                if (spaceLeft <= 0.1) break;
+                double take = Math.Min(item.RemainingWeight, spaceLeft);
+                item.LoadedAmountForCurrentRide = take;
+                item.RemainingWeight -= take;
                 selected.Add(item);
-                currentLoad += amountToTake;
+                currentLoad += take;
             }
-
             return selected;
         }
 
         private async Task SaveRouteToDb(Vehicle vehicle, List<ProcessingItem> items, double startLat, double startLng)
         {
-            // Rota sıralaması için orijinal kargo nesnelerini listeye çevir
             var cargoRequests = items.Select(i => i.OriginalCargo).ToList();
-
-            // TSP Algoritması ile en kısa yolu bul
             var optimizedRoute = _optimizer.OptimizeRoute(cargoRequests, startLat, startLng);
 
-            // Mesafeyi Hesapla
             double totalDist = 0;
             double currentLat = startLat;
             double currentLng = startLng;
@@ -184,17 +156,13 @@ namespace Yazlab3.Controllers
             {
                 if (cargo.TargetStation != null)
                 {
-                    double tLat = (double)cargo.TargetStation.Latitude;
-                    double tLng = (double)cargo.TargetStation.Longitude;
-                    totalDist += _optimizer.CalculateDistance(currentLat, currentLng, tLat, tLng);
-                    currentLat = tLat;
-                    currentLng = tLng;
+                    totalDist += _optimizer.CalculateDistance(currentLat, currentLng, (double)cargo.TargetStation.Latitude, (double)cargo.TargetStation.Longitude);
+                    currentLat = (double)cargo.TargetStation.Latitude;
+                    currentLng = (double)cargo.TargetStation.Longitude;
                 }
             }
-            // Depoya dönüş
             totalDist += _optimizer.CalculateDistance(currentLat, currentLng, startLat, startLng);
 
-            // Sefer Kaydı
             var deliveryRoute = new DeliveryRoute
             {
                 VehicleId = vehicle.Id,
@@ -205,92 +173,27 @@ namespace Yazlab3.Controllers
             _context.DeliveryRoutes.Add(deliveryRoute);
             await _context.SaveChangesAsync();
 
-            // Durak Kaydı
             int order = 1;
             foreach (var cargo in optimizedRoute)
             {
-                // Listeden bu kargo için ayrılan yük miktarını bul
                 var itemData = items.First(i => i.OriginalCargoId == cargo.Id);
-
-                var stop = new RouteStop
+                _context.RouteStops.Add(new RouteStop
                 {
                     DeliveryRouteId = deliveryRoute.Id,
                     StationId = cargo.TargetStationId,
                     VisitOrder = order++,
-                    LoadedCargoWeight = itemData.LoadedAmountForCurrentRide // PARÇALANMIŞ AĞIRLIK BURAYA
-                };
-                _context.RouteStops.Add(stop);
+                    LoadedCargoWeight = itemData.LoadedAmountForCurrentRide
+                });
             }
             await _context.SaveChangesAsync();
         }
-        // GET: api/Optimization/routes
-        // Bu etiket ÇOK ÖNEMLİ. Frontend tam olarak bu adresi arıyor.
-        [HttpGet("routes")]
-        public async Task<ActionResult> GetRoutes()
-        {
-            var routes = await _context.DeliveryRoutes
-                .Include(r => r.Vehicle)
-                .Include(r => r.Stops)
-                    .ThenInclude(s => s.Station)
-                .OrderByDescending(r => r.RouteDate)
-                .ToListAsync();
-
-            // Burası Kritik: RouteStop içinde direkt kargo sahibi bilgisi yok.
-            // Ama biz RouteStop'a "LoadedCargoWeight" yazarken hangi kargodan aldığımızı biliyorduk.
-            // Rapor için şu anlık basit bir çözüm yapacağız:
-            // "Bu durakta inen yükler, o ilçeye kargo gönderen müşterilere aittir."
-
-            // DTO (Veri Transfer Modeli) hazırlayalım
-            var result = new List<object>();
-
-            foreach (var route in routes)
-            {
-                var stopsData = new List<object>();
-
-                foreach (var stop in route.Stops.OrderBy(s => s.VisitOrder))
-                {
-                    // Bu durak (ilçe) için bekleyen ve "İşlenmiş" olan kargoları bul
-                    // Not: Bu tam %100 eşleşme sağlamaz ama simülasyon için yeterlidir.
-                    // Gerçek çözüm için RouteStop tablosuna CargoRequestId eklememiz gerekirdi (Veritabanı değişimi gerekir).
-                    // Şimdilik ilçeye göre müşteri listeliyoruz:
-
-                    var customers = await _context.CargoRequests
-                        .Include(c => c.User)
-                        .Where(c => c.TargetStationId == stop.StationId && c.IsProcessed == true)
-                        .Select(c => c.User.Username)
-                        .Distinct()
-                        .ToListAsync();
-
-                    stopsData.Add(new
-                    {
-                        stop.Id,
-                        stop.VisitOrder,
-                        stop.LoadedCargoWeight,
-                        StationName = stop.Station.Name,
-                        Customers = customers // Müşteri isimleri listesi
-                    });
-                }
-
-                result.Add(new
-                {
-                    route.Id,
-                    route.TotalDistanceKm,
-                    route.TotalCost,
-                    Vehicle = route.Vehicle,
-                    Stops = stopsData
-                });
-            }
-
-            return Ok(result);
-        }
     }
 
-    // --- YARDIMCI SINIF (Class Dışında Tanımlandı) ---
     public class ProcessingItem
     {
         public int OriginalCargoId { get; set; }
         public CargoRequest OriginalCargo { get; set; }
-        public double RemainingWeight { get; set; } // Hala taşınması gereken (örn: 900 -> 400)
-        public double LoadedAmountForCurrentRide { get; set; } // O anki araca yüklenen (örn: 500)
+        public double RemainingWeight { get; set; }
+        public double LoadedAmountForCurrentRide { get; set; }
     }
 }

@@ -4,14 +4,53 @@ namespace Yazlab3.Services
 {
     public class RouteOptimizer
     {
-        // Dünya Yarıçapı (km)
         private const double EarthRadiusKm = 6371;
 
-        // --- 1. MESAFE HESAPLAMA (HAVERSINE + KIVRIM PAYI) ---
-        // Raporun "Kuş uçuşu kullanılmamalıdır" maddesi için:
-        // Matematiksel kuş uçuşu mesafesini 1.3 (yol kıvrım katsayısı) ile çarpıyoruz.
-        // Bu sayede Google Maps rotalarına çok yakın, gerçekçi bir maliyet çıkıyor.
+        // --- 1. AKILLI MESAFE HESABI (KÖRFEZ MANTIĞI) ---
         public double CalculateDistance(double lat1, double lon1, double lat2, double lon2)
+        {
+            // İzmit Merkez Koordinatları (Köprü/Düğüm Noktası)
+            double hubLat = 40.7654;
+            double hubLng = 29.9408;
+
+            // Kuzey ve Güney yakası kontrolü
+            bool isSourceNorth = IsNorthSide(lat1, lon1);
+            bool isTargetNorth = IsNorthSide(lat2, lon2);
+            bool isSourceSouth = IsSouthSide(lat1, lon1);
+            bool isTargetSouth = IsSouthSide(lat2, lon2);
+
+            // DURUM 1: KÖRFEZ GEÇİŞİ GEREKİYORSA (Biri Kuzeyde, Biri Güneyde)
+            // Bu durumda kuş uçuşu gidemez, İzmit Merkez (Hub) üzerinden dolaşmalı.
+            if ((isSourceNorth && isTargetSouth) || (isSourceSouth && isTargetNorth))
+            {
+                // Rota: A -> İzmit -> B
+                double distToHub = GetHaversineDistance(lat1, lon1, hubLat, hubLng);
+                double distFromHub = GetHaversineDistance(hubLat, hubLng, lat2, lon2);
+
+                // 1.2 faktörü: Anayol olduğu için kıvrım azdır ama yol uzundur.
+                return (distToHub + distFromHub) * 1.2;
+            }
+
+            // DURUM 2: AYNI YAKA VEYA DOĞU TARAFI (Normal Yol)
+            // 1.3 faktörü: Şehir içi yolların kıvrım payı.
+            return GetHaversineDistance(lat1, lon1, lat2, lon2) * 1.3;
+        }
+
+        // Kuzey Yakası Tanımı (Gebze, Dilovası, Körfez, Derince tarafları)
+        // Enlem 40.74'ten büyük ve Boylam 29.90'dan küçük olan yerler
+        private bool IsNorthSide(double lat, double lng)
+        {
+            return lat > 40.745 && lng < 29.90;
+        }
+
+        // Güney Yakası Tanımı (Gölcük, Karamürsel, Başiskele tarafları)
+        private bool IsSouthSide(double lat, double lng)
+        {
+            return lat <= 40.745 && lng < 29.90;
+        }
+
+        // Saf Matematiksel Hesap (Haversine Formülü)
+        private double GetHaversineDistance(double lat1, double lon1, double lat2, double lon2)
         {
             var dLat = DegreesToRadians(lat2 - lat1);
             var dLon = DegreesToRadians(lon2 - lon1);
@@ -21,11 +60,7 @@ namespace Yazlab3.Services
                     Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
 
             var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
-
-            var straightDistance = EarthRadiusKm * c;
-
-            // * 1.3 -> Yol Kıvrım Faktörü (Road Tortuosity Factor)
-            return straightDistance * 1.3;
+            return EarthRadiusKm * c;
         }
 
         private double DegreesToRadians(double degrees)
@@ -34,24 +69,18 @@ namespace Yazlab3.Services
         }
 
         // --- 2. YÜKLEME ALGORİTMASI (KNAPSACK) ---
-        // Araca sığabilecek en değerli (burada ağırlıkça en fazla) yükü seçer.
         public List<CargoRequest> KnapsackLoader(List<CargoRequest> cargoList, double vehicleCapacity)
         {
             int n = cargoList.Count;
-            int capacity = (int)vehicleCapacity; // Hassasiyet için int'e çeviriyoruz
-
-            // Kargo ağırlıkları (int olarak)
+            int capacity = (int)vehicleCapacity;
             int[] weights = cargoList.Select(c => (int)Math.Ceiling(c.WeightKg)).ToArray();
-
-            // DP Tablosu
             int[,] dp = new int[n + 1, capacity + 1];
 
             for (int i = 0; i <= n; i++)
             {
                 for (int w = 0; w <= capacity; w++)
                 {
-                    if (i == 0 || w == 0)
-                        dp[i, w] = 0;
+                    if (i == 0 || w == 0) dp[i, w] = 0;
                     else if (weights[i - 1] <= w)
                         dp[i, w] = Math.Max(weights[i - 1] + dp[i - 1, w - weights[i - 1]], dp[i - 1, w]);
                     else
@@ -59,15 +88,13 @@ namespace Yazlab3.Services
                 }
             }
 
-            // Seçilen kargoları geriye doğru takip et
             var selectedCargos = new List<CargoRequest>();
             int res = dp[n, capacity];
             int wLimit = capacity;
 
             for (int i = n; i > 0 && res > 0; i--)
             {
-                if (res == dp[i - 1, wLimit])
-                    continue;
+                if (res == dp[i - 1, wLimit]) continue;
                 else
                 {
                     selectedCargos.Add(cargoList[i - 1]);
@@ -75,28 +102,18 @@ namespace Yazlab3.Services
                     wLimit -= weights[i - 1];
                 }
             }
-
             return selectedCargos;
         }
 
         // --- 3. ROTA OPTİMİZASYONU (NN + 2-OPT) ---
-        // Bu metot, karışık verilen durakları en mantıklı sıraya dizer.
         public List<CargoRequest> OptimizeRoute(List<CargoRequest> cargoLoad, double startLat, double startLng)
         {
             if (cargoLoad.Count <= 1) return cargoLoad;
-
-            // ADIM A: Başlangıç Çözümü (En Yakın Komşu - Greedy)
-            // Hızlıca mantıklı bir rota oluşturur.
             var initialRoute = NearestNeighbor(cargoLoad, startLat, startLng);
-
-            // ADIM B: İyileştirme (2-Opt Algoritması - Local Search)
-            // Oluşan rotadaki çapraz geçişleri (kördüğümleri) çözer.
             var optimizedRoute = ApplyTwoOpt(initialRoute, startLat, startLng);
-
             return optimizedRoute;
         }
 
-        // Yardımcı Metot: Nearest Neighbor (En Yakın Komşu)
         private List<CargoRequest> NearestNeighbor(List<CargoRequest> cargoLoad, double startLat, double startLng)
         {
             var route = new List<CargoRequest>();
@@ -112,14 +129,8 @@ namespace Yazlab3.Services
                 foreach (var candidate in remaining)
                 {
                     if (candidate.TargetStation == null) continue;
-
                     double dist = CalculateDistance(currentLat, currentLng, (double)candidate.TargetStation.Latitude, (double)candidate.TargetStation.Longitude);
-
-                    if (dist < minDist)
-                    {
-                        minDist = dist;
-                        nearest = candidate;
-                    }
+                    if (dist < minDist) { minDist = dist; nearest = candidate; }
                 }
 
                 if (nearest != null)
@@ -129,23 +140,16 @@ namespace Yazlab3.Services
                     currentLng = (double)nearest.TargetStation.Longitude;
                     remaining.Remove(nearest);
                 }
-                else
-                {
-                    // Hata durumunda (mesela istasyon null ise) döngüyü kır
-                    if (remaining.Count > 0) route.Add(remaining[0]);
-                    remaining.RemoveAt(0);
-                }
+                else { if (remaining.Count > 0) route.Add(remaining[0]); remaining.RemoveAt(0); }
             }
             return route;
         }
 
-        // Yardımcı Metot: 2-Opt (Rotayı Çözme)
         private List<CargoRequest> ApplyTwoOpt(List<CargoRequest> route, double startLat, double startLng)
         {
             bool improvement = true;
             var bestRoute = new List<CargoRequest>(route);
 
-            // İyileşme olduğu sürece döngü devam eder
             while (improvement)
             {
                 improvement = false;
@@ -153,16 +157,14 @@ namespace Yazlab3.Services
                 {
                     for (int k = i + 1; k < bestRoute.Count; k++)
                     {
-                        // İki kenarı değiştirip (swap) mesafeye bakıyoruz
                         var newRoute = TwoOptSwap(bestRoute, i, k);
-
                         double currentDist = CalculateTotalDistance(bestRoute, startLat, startLng);
                         double newDist = CalculateTotalDistance(newRoute, startLat, startLng);
 
                         if (newDist < currentDist)
                         {
                             bestRoute = newRoute;
-                            improvement = true; // Daha iyi bir yol bulduk, tekrar tarayalım
+                            improvement = true;
                         }
                     }
                 }
@@ -170,30 +172,20 @@ namespace Yazlab3.Services
             return bestRoute;
         }
 
-        // 2-Opt Swap İşlemi: i ve k arasındaki rotayı ters çevirir
         private List<CargoRequest> TwoOptSwap(List<CargoRequest> route, int i, int k)
         {
             var newRoute = new List<CargoRequest>();
-
-            // 1. i'ye kadar olan kısmı aynen al
             for (int c = 0; c <= i - 1; c++) newRoute.Add(route[c]);
-
-            // 2. i ile k arasını TERS ÇEVİRİP al (Reverse)
             for (int c = k; c >= i; c--) newRoute.Add(route[c]);
-
-            // 3. k'dan sonrasını aynen al
             for (int c = k + 1; c < route.Count; c++) newRoute.Add(route[c]);
-
             return newRoute;
         }
 
-        // Toplam Mesafe Hesaplayıcı (Karşılaştırma için)
         private double CalculateTotalDistance(List<CargoRequest> route, double depotLat, double depotLng)
         {
             double dist = 0;
             double currLat = depotLat;
             double currLng = depotLng;
-
             foreach (var stop in route)
             {
                 if (stop.TargetStation != null)
@@ -205,9 +197,7 @@ namespace Yazlab3.Services
                     currLng = nextLng;
                 }
             }
-            // Depoya dönüşü de hesaba kat
             dist += CalculateDistance(currLat, currLng, depotLat, depotLng);
-
             return dist;
         }
     }

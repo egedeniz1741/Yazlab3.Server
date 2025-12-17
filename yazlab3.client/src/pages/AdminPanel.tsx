@@ -2,13 +2,8 @@
 import { useNavigate } from 'react-router-dom';
 import MapDisplay from '../Components/MapDisplay';
 
-// --- TİP TANIMLAMALARI (MapDisplay ile %100 Uyumlu) ---
-interface Station {
-    id: number;
-    name: string;
-    latitude: number;
-    longitude: number;
-}
+// --- TİP TANIMLAMALARI ---
+interface Station { id: number; name: string; latitude: number; longitude: number; }
 
 interface StopDetail {
     id: number;
@@ -16,7 +11,7 @@ interface StopDetail {
     loadedCargoWeight: number;
     stationName: string;
     customers: string[];
-    station: Station; // <--- BU EKSİKTİ, EKLENDİ! Harita bunu ister.
+    station: Station; // Harita için zorunlu alan
 }
 
 interface Vehicle {
@@ -40,40 +35,43 @@ const AdminPanel = () => {
 
     // --- STATE'LER ---
     const [status, setStatus] = useState("");
-    const [allRoutes, setAllRoutes] = useState<DeliveryRoute[]>([]); // Tüm Veri
-    const [filteredRoutes, setFilteredRoutes] = useState<DeliveryRoute[]>([]); // Filtreli Veri
+    const [allRoutes, setAllRoutes] = useState<DeliveryRoute[]>([]);
+    const [filteredRoutes, setFilteredRoutes] = useState<DeliveryRoute[]>([]);
     const [stations, setStations] = useState<Station[]>([]);
 
-    // Filtre State'leri
+    // Geçmiş Kayıtlar Modu
+    const [showHistory, setShowHistory] = useState(false);
+
+    // Filtreleme
     const [selectedVehicle, setSelectedVehicle] = useState("all");
     const [searchCustomer, setSearchCustomer] = useState("");
 
-    // Modal State'leri
+    // Modallar
     const [showSummary, setShowSummary] = useState(false);
     const [showMatrix, setShowMatrix] = useState(false);
     const [matrixData, setMatrixData] = useState<any>(null);
 
-    // Form State'leri
+    // Form
     const [newStationName, setNewStationName] = useState("");
     const [newLat, setNewLat] = useState("");
     const [newLng, setNewLng] = useState("");
 
-    // Sayfa Yüklenince
+    // VERİLERİ ÇEK
     useEffect(() => {
         fetchRoutes();
         fetchStations();
-    }, []);
+    }, [showHistory]); // showHistory değişince (Geçmiş/Aktif) veriyi tekrar çek
 
-    // --- FİLTRELEME MANTIĞI ---
+    // FİLTRELEME MANTIĞI
     useEffect(() => {
         let result = allRoutes;
 
-        // 1. Araç Filtresi
+        // Araç Filtresi
         if (selectedVehicle !== "all") {
             result = result.filter(r => r.vehicle.name === selectedVehicle);
         }
 
-        // 2. Müşteri Filtresi
+        // Müşteri Filtresi
         if (searchCustomer.trim() !== "") {
             const term = searchCustomer.toLowerCase();
             result = result.filter(r =>
@@ -86,10 +84,12 @@ const AdminPanel = () => {
         setFilteredRoutes(result);
     }, [selectedVehicle, searchCustomer, allRoutes]);
 
-    // --- VERİ ÇEKME FONKSİYONLARI ---
+    // --- API ÇAĞRILARI ---
     const fetchRoutes = async () => {
         try {
-            const res = await fetch('/api/Optimization/routes');
+            // Backend'e "?showHistory=true" veya "false" gönderiyoruz
+            const url = showHistory ? '/api/Optimization/routes?showHistory=true' : '/api/Optimization/routes';
+            const res = await fetch(url);
             if (res.ok) {
                 const data = await res.json();
                 setAllRoutes(data);
@@ -99,67 +99,43 @@ const AdminPanel = () => {
     };
 
     const fetchStations = async () => {
-        try {
-            const res = await fetch('/api/stations');
-            if (res.ok) setStations(await res.json());
-        } catch (err) { console.error(err); }
+        try { const res = await fetch('/api/stations'); if (res.ok) setStations(await res.json()); } catch (err) { }
     };
 
     const fetchMatrix = async () => {
-        try {
-            const res = await fetch('/api/stations/matrix');
-            if (res.ok) {
-                setMatrixData(await res.json());
-                setShowMatrix(true);
-            }
-        } catch (err) { alert("Matris verisi alınamadı."); }
+        try { const res = await fetch('/api/stations/matrix'); if (res.ok) { setMatrixData(await res.json()); setShowMatrix(true); } } catch { alert("Hata."); }
     };
 
-    // --- İŞLEM FONKSİYONLARI ---
+    // --- İŞLEMLER ---
     const handleAddStation = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
             const res = await fetch('/api/stations', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    name: newStationName,
-                    latitude: parseFloat(newLat),
-                    longitude: parseFloat(newLng)
-                })
+                body: JSON.stringify({ name: newStationName, latitude: parseFloat(newLat), longitude: parseFloat(newLng) })
             });
-            if (res.ok) {
-                alert("✅ İstasyon eklendi.");
-                setNewStationName(""); setNewLat(""); setNewLng("");
-                fetchStations();
-                window.location.reload();
-            }
-        } catch (err) { alert("Hata oluştu."); }
-    };
-
-    const handleDeleteStation = async (id: number) => {
-        if (!window.confirm("Silmek istediğinize emin misiniz?")) return;
-        try {
-            const res = await fetch(`/api/stations/${id}`, { method: 'DELETE' });
-            if (res.ok) { fetchStations(); window.location.reload(); }
+            if (res.ok) { alert("✅ Eklendi."); setNewStationName(""); setNewLat(""); setNewLng(""); fetchStations(); window.location.reload(); }
         } catch (err) { alert("Hata."); }
     };
 
+    const handleDeleteStation = async (id: number) => {
+        if (!window.confirm("Silinsin mi?")) return;
+        try { const res = await fetch(`/api/stations/${id}`, { method: 'DELETE' }); if (res.ok) { fetchStations(); window.location.reload(); } } catch { alert("Hata."); }
+    };
+
     const runOptimization = async () => {
-        setStatus("⏳ Hesaplama yapılıyor...");
+        setStatus("⏳ Hesaplanıyor...");
         try {
             const res = await fetch('/api/Optimization/plan?useRentedVehicles=true', { method: 'POST' });
             const data = await res.json();
-            if (res.ok) {
-                setStatus(`✅ ${data.message}`);
-                fetchRoutes();
-                setTimeout(() => window.location.reload(), 1500);
-            } else { setStatus("❌ " + data.message); }
-        } catch (err) { setStatus("❌ Sunucu hatası."); }
+            if (res.ok) { setStatus(`✅ ${data.message}`); fetchRoutes(); setTimeout(() => window.location.reload(), 1500); }
+            else { setStatus("❌ " + data.message); }
+        } catch { setStatus("❌ Sunucu Hatası"); }
     };
 
     const resetSystem = async () => {
-        if (!window.confirm("TÜM veriler silinecek!")) return;
+        if (!window.confirm("Mevcut rotalar arşivlenecek ve harita temizlenecek. Onaylıyor musunuz?")) return;
         await fetch('/api/scenario/reset', { method: 'DELETE' });
         window.location.reload();
     };
@@ -167,14 +143,14 @@ const AdminPanel = () => {
     const loadScenario = async (id: number) => {
         if (!window.confirm(`Senaryo ${id} yüklenecek.`)) return;
         await fetch('/api/scenario/reset', { method: 'DELETE' });
-        setStatus(`⏳ Senaryo ${id} yükleniyor...`);
+        setStatus(`⏳ Senaryo ${id} Yükleniyor...`);
         try {
             const res = await fetch(`/api/scenario/${id}`, { method: 'POST' });
             if (res.ok) setStatus(`✅ Senaryo ${id} Hazır!`);
-        } catch (err) { setStatus("❌ Hata."); }
+        } catch { setStatus("❌ Hata."); }
     };
 
-    // İstatistik Hesaplama (Özet Tablo İçin)
+    // İstatistikler
     const calculateStats = () => {
         const totalCost = allRoutes.reduce((acc, r) => acc + r.totalCost, 0);
         const totalDist = allRoutes.reduce((acc, r) => acc + r.totalDistanceKm, 0);
@@ -184,8 +160,6 @@ const AdminPanel = () => {
         return { totalCost, totalDist, totalCargo, rentedCount, ownedCount };
     };
     const stats = calculateStats();
-
-    // Araç isimleri listesi (Select box için)
     const vehicleNames = [...new Set(allRoutes.map(r => r.vehicle.name))];
 
     return (
@@ -197,10 +171,20 @@ const AdminPanel = () => {
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                     <div style={{ display: 'flex', gap: '5px' }}>{[1, 2, 3, 4].map(num => (<button key={num} onClick={() => loadScenario(num)} style={{ padding: '6px 10px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>S{num}</button>))}</div>
                     <div style={{ width: '1px', height: '25px', backgroundColor: '#ddd' }}></div>
+
+                    {/* YENİ: GEÇMİŞ / AKTİF BUTONU */}
+                    <button
+                        onClick={() => setShowHistory(!showHistory)}
+                        style={{ padding: '8px 15px', backgroundColor: showHistory ? '#34495e' : '#95a5a6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                    >
+                        {showHistory ? '📂 Aktife Dön' : '📜 Geçmiş'}
+                    </button>
+
                     <button onClick={resetSystem} style={{ padding: '8px 15px', backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Temizle</button>
                     <button onClick={runOptimization} style={{ padding: '8px 15px', backgroundColor: '#27ae60', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Hesapla</button>
                     <button onClick={() => setShowSummary(true)} style={{ padding: '8px 15px', backgroundColor: '#8e44ad', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>📊 Özet</button>
                     <button onClick={fetchMatrix} style={{ padding: '8px 15px', backgroundColor: '#f39c12', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>📏 Mesafeler</button>
+
                     <div style={{ width: '1px', height: '25px', backgroundColor: '#ddd' }}></div>
                     <button onClick={() => navigate('/admin-panel/add-user')} style={{ padding: '8px 15px', backgroundColor: '#3498db', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>➕ Kullanıcı</button>
                     <button onClick={() => navigate('/')} style={{ padding: '8px 15px', backgroundColor: '#95a5a6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Çıkış</button>
@@ -222,12 +206,11 @@ const AdminPanel = () => {
                             {vehicleNames.map(v => <option key={v} value={v}>{v}</option>)}
                         </select>
                         <input placeholder="Müşteri Adı Ara..." value={searchCustomer} onChange={e => setSearchCustomer(e.target.value)} style={{ padding: '8px', borderRadius: '6px', border: '1px solid #ccc', flex: 1 }} />
-                        <span style={{ fontSize: '12px', color: '#7f8c8d' }}>{filteredRoutes.length} / {allRoutes.length} Rota</span>
+                        <span style={{ fontSize: '12px', color: '#7f8c8d' }}>{filteredRoutes.length} Rota</span>
                     </div>
 
                     {/* Harita */}
                     <div style={{ border: '1px solid #e0e0e0', height: '650px', borderRadius: '12px', overflow: 'hidden', backgroundColor: 'white', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
-                        {/* TypeScript hatası artık çıkmayacak çünkü DeliveryRoute tipleri eşitlendi */}
                         <MapDisplay externalRoutes={filteredRoutes} />
                     </div>
                 </div>
@@ -239,11 +222,11 @@ const AdminPanel = () => {
                     <div style={{ padding: '20px', borderRadius: '12px', backgroundColor: 'white', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
                         <h4 style={{ margin: '0 0 10px 0', color: '#34495e', borderBottom: '2px solid #f1f1f1', paddingBottom: '5px' }}>📍 İstasyon Yönetimi</h4>
                         <form onSubmit={handleAddStation} style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginBottom: '10px' }}>
-                            <input placeholder="Adı" value={newStationName} onChange={e => setNewStationName(e.target.value)} required style={{ padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }} />
                             <div style={{ display: 'flex', gap: '5px' }}>
+                                <input placeholder="Adı" value={newStationName} onChange={e => setNewStationName(e.target.value)} required style={{ flex: 2, padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }} />
                                 <input placeholder="Lat" value={newLat} onChange={e => setNewLat(e.target.value)} required style={{ flex: 1, padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }} />
                                 <input placeholder="Lng" value={newLng} onChange={e => setNewLng(e.target.value)} required style={{ flex: 1, padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }} />
-                                <button type="submit" style={{ padding: '8px', backgroundColor: '#3498db', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Ekle</button>
+                                <button type="submit" style={{ padding: '8px', backgroundColor: '#3498db', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>+</button>
                             </div>
                         </form>
                         <div style={{ maxHeight: '100px', overflowY: 'auto', border: '1px solid #f1f1f1', borderRadius: '4px', padding: '5px' }}>
@@ -258,13 +241,18 @@ const AdminPanel = () => {
 
                     {/* Detaylı Rota Listesi */}
                     <div style={{ padding: '20px', borderRadius: '12px', backgroundColor: 'white', flex: 1, boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
-                        <h3 style={{ marginTop: 0, color: '#34495e', borderBottom: '2px solid #f1f1f1', paddingBottom: '10px' }}>📋 Sefer Detayları</h3>
-                        {filteredRoutes.length === 0 ? <p style={{ color: '#999', textAlign: 'center' }}>Veri yok.</p> : (
+                        <h3 style={{ marginTop: 0, color: '#34495e', borderBottom: '2px solid #f1f1f1', paddingBottom: '10px' }}>
+                            {showHistory ? '📜 Geçmiş Sefer Detayları' : '📋 Aktif Sefer Detayları'}
+                        </h3>
+                        {filteredRoutes.length === 0 ? <p style={{ color: '#999', textAlign: 'center' }}>Kriterlere uygun rota yok.</p> : (
                             <div style={{ overflowY: 'auto', maxHeight: '500px' }}>
                                 {filteredRoutes.map(r => (
                                     <div key={r.id} style={{ marginBottom: '15px', border: '1px solid #eee', borderRadius: '8px', overflow: 'hidden' }}>
                                         <div style={{ backgroundColor: '#f8f9fa', padding: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <div><strong style={{ fontSize: '15px', color: '#2c3e50' }}>{r.vehicle.name}</strong>{r.vehicle.isRented && <span style={{ marginLeft: '10px', fontSize: '11px', backgroundColor: '#ffeeba', padding: '2px 5px', borderRadius: '4px', color: '#856404' }}>Kiralık</span>}</div>
+                                            <div>
+                                                <strong style={{ fontSize: '15px', color: '#2c3e50' }}>{r.vehicle.name}</strong>
+                                                {r.vehicle.isRented && <span style={{ marginLeft: '10px', fontSize: '11px', backgroundColor: '#ffeeba', padding: '2px 5px', borderRadius: '4px', color: '#856404' }}>Kiralık</span>}
+                                            </div>
                                             <div style={{ textAlign: 'right', fontSize: '12px' }}><div>Mesafe: <b>{r.totalDistanceKm.toFixed(1)} km</b></div><div style={{ color: '#27ae60' }}>Maliyet: <b>{r.totalCost.toFixed(2)} TL</b></div></div>
                                         </div>
                                         <div style={{ padding: '10px', backgroundColor: '#fff' }}>

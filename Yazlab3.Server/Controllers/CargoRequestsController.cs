@@ -95,5 +95,22 @@ namespace Yazlab3.Controllers
 
             return Ok(result);
         }
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> CancelRequest(int id)
+        {
+            var cargoRequest = await _context.CargoRequests.FindAsync(id);
+            if (cargoRequest == null) return NotFound();
+
+            // Sadece "İşlenmemiş" (Yola Çıkmamış) kargolar iptal edilebilir
+            if (cargoRequest.IsProcessed)
+            {
+                return BadRequest(new { message = "Bu kargo yola çıktığı için iptal edilemez!" });
+            }
+
+            _context.CargoRequests.Remove(cargoRequest);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Talep başarıyla iptal edildi." });
+        }
     }
 }

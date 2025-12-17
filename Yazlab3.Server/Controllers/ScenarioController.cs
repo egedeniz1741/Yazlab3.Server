@@ -143,32 +143,27 @@ namespace Yazlab3.Controllers
         }
         // ... LoadScenario1 metodu üstte kalsın ...
 
-        // DELETE: api/scenario/reset
         [HttpDelete("reset")]
         public async Task<IActionResult> ResetSystem()
         {
-            // 1. Önce Durakları Sil (En alt detay)
-            var stops = await _context.RouteStops.ToListAsync();
-            _context.RouteStops.RemoveRange(stops);
+            // 1. Mevcut Aktif Rotaları Bul
+            var activeRoutes = await _context.DeliveryRoutes
+                .Where(r => !r.IsArchived)
+                .ToListAsync();
 
-            // 2. Rotaları Sil
-            var routes = await _context.DeliveryRoutes.ToListAsync();
-            _context.DeliveryRoutes.RemoveRange(routes);
+            // 2. Hepsini "Arşivlendi" olarak işaretle (SİLME YOK!)
+            foreach (var route in activeRoutes)
+            {
+                route.IsArchived = true;
+            }
 
-            // 3. Kargo Taleplerini Sil
-            var requests = await _context.CargoRequests.ToListAsync();
-            _context.CargoRequests.RemoveRange(requests);
-
-            // 4. SADECE KİRALIK ARAÇLARI SİL (DÜZELTİLEN KISIM)
-            // Eski kodda hepsini siliyorduk, bu yüzden araç kalmıyordu.
-            // Şimdi sadece 'IsRented = true' olanları siliyoruz.
-            var rentedVehicles = await _context.Vehicles
-                                      .Where(v => v.IsRented == true)
-                                      .ToListAsync();
-            _context.Vehicles.RemoveRange(rentedVehicles);
+            // 3. İşlenmemiş (Bekleyen) Kargoları Silelim mi? 
+            // Genelde "Temizle" denince harita boşalsın istenir.
+            // Bekleyen kargoları SİLMİYORUZ, kalsınlar ki bir sonraki hesaplamaya dahil olsunlar.
+            // Sadece "İşlenmiş" olanlar zaten rotayla gittiği için sorun yok.
 
             await _context.SaveChangesAsync();
-            return Ok("Sistem sıfırlandı. Ana araçlar korundu, kiralıklar ve kargolar silindi.");
+            return Ok(new { message = "Sistem temizlendi, eski rotalar arşive taşındı." });
         }
     }
 }

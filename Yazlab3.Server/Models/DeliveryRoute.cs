@@ -18,5 +18,6 @@ namespace Yazlab3.Models
 
         // Bu rotadaki duraklar (Sırasıyla tutulacak)
         public virtual ICollection<RouteStop> Stops { get; set; }
+        public bool IsArchived { get; set; } = false;
     }
 }

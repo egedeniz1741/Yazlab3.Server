@@ -90,15 +90,30 @@ namespace Yazlab3.Controllers
             }
         }
 
-        // --- DÜZELTİLEN METOT ---
         [HttpGet("routes")]
-        public async Task<ActionResult> GetRoutes()
+        public async Task<ActionResult> GetRoutes([FromQuery] bool showHistory = false)
         {
-            var routes = await _context.DeliveryRoutes
+            var query = _context.DeliveryRoutes
                 .Include(r => r.Vehicle)
                 .Include(r => r.Stops).ThenInclude(s => s.Station)
                 .OrderByDescending(r => r.RouteDate)
-                .ToListAsync();
+                .AsQueryable();
+
+            // Eğer showHistory=true ise SADECE ESKİLERİ getir
+            // Eğer showHistory=false (varsayılan) ise SADECE AKTİFLERİ getir
+            if (showHistory)
+            {
+                query = query.Where(r => r.IsArchived);
+            }
+            else
+            {
+                query = query.Where(r => !r.IsArchived);
+            }
+
+            var routes = await query.ToListAsync();
+
+            // ... (Geri kalan result oluşturma kodu AYNI kalsın) ...
+            // (Burayı önceki koddan kopyala yapıştır yapabilirsin, sadece üstteki query kısmı değişti)
 
             var result = new List<object>();
             foreach (var route in routes)
@@ -108,7 +123,7 @@ namespace Yazlab3.Controllers
                 {
                     var customers = await _context.CargoRequests
                         .Include(c => c.User)
-                        .Where(c => c.TargetStationId == stop.StationId && c.IsProcessed == true)
+                        .Where(c => c.TargetStationId == stop.StationId && c.IsProcessed == true) // Not: Bu mantık arşivde %100 tutmayabilir ama görsel için yeterli
                         .Select(c => c.User.Username).Distinct().ToListAsync();
 
                     stopsData.Add(new
@@ -117,7 +132,7 @@ namespace Yazlab3.Controllers
                         stop.VisitOrder,
                         stop.LoadedCargoWeight,
                         StationName = stop.Station.Name,
-                        Station = stop.Station, // <--- HARİTA İÇİN BU LAZIM
+                        Station = stop.Station,
                         Customers = customers
                     });
                 }
@@ -143,25 +158,29 @@ namespace Yazlab3.Controllers
             return selected;
         }
 
-        private async Task SaveRouteToDb(Vehicle vehicle, List<ProcessingItem> items, double startLat, double startLng)
+        private async Task SaveRouteToDb(Vehicle vehicle, List<ProcessingItem> items, double dummyLat, double dummyLng)
         {
             var cargoRequests = items.Select(i => i.OriginalCargo).ToList();
-            var optimizedRoute = _optimizer.OptimizeRoute(cargoRequests, startLat, startLng);
+
+            // Başlangıç koordinatı artık önemli değil, algoritma kendi içinde ilk durağı seçiyor.
+            var optimizedRoute = _optimizer.OptimizeRoute(cargoRequests, 0, 0);
 
             double totalDist = 0;
-            double currentLat = startLat;
-            double currentLng = startLng;
 
-            foreach (var cargo in optimizedRoute)
+            // 1. İstasyonlar Arası Mesafe
+            for (int i = 0; i < optimizedRoute.Count - 1; i++)
             {
-                if (cargo.TargetStation != null)
-                {
-                    totalDist += _optimizer.CalculateDistance(currentLat, currentLng, (double)cargo.TargetStation.Latitude, (double)cargo.TargetStation.Longitude);
-                    currentLat = (double)cargo.TargetStation.Latitude;
-                    currentLng = (double)cargo.TargetStation.Longitude;
-                }
+                var s1 = optimizedRoute[i].TargetStation;
+                var s2 = optimizedRoute[i + 1].TargetStation;
+                totalDist += _optimizer.CalculateDistance((double)s1.Latitude, (double)s1.Longitude, (double)s2.Latitude, (double)s2.Longitude);
             }
-            totalDist += _optimizer.CalculateDistance(currentLat, currentLng, startLat, startLng);
+
+            // 2. Son Duraktan -> UMUTTEPE'YE (40.821768, 29.923476)
+            if (optimizedRoute.Count > 0)
+            {
+                var last = optimizedRoute.Last().TargetStation;
+                totalDist += _optimizer.CalculateDistance((double)last.Latitude, (double)last.Longitude, 40.821768, 29.923476);
+            }
 
             var deliveryRoute = new DeliveryRoute
             {

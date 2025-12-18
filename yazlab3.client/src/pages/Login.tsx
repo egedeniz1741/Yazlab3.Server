@@ -2,53 +2,42 @@
 import { useNavigate } from 'react-router-dom';
 
 const Login = () => {
-    // Form verileri için state'ler
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
-
-    // UI durumu için state'ler
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
     const navigate = useNavigate();
 
     const handleLogin = async (e: React.FormEvent) => {
-        e.preventDefault(); // Sayfa yenilenmesini engelle
+        e.preventDefault();
         setError('');
         setIsLoading(true);
 
         try {
-            // Backend'e istek atıyoruz (DTO yapısına uygun JSON gönderiyoruz)
             const response = await fetch('http://localhost:5054/api/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password })
             });
 
-            // Gelen cevabı oku
             const data = await response.json();
 
             if (response.ok && data.success) {
-                // BAŞARILI: Verileri tarayıcıya kaydet
                 localStorage.setItem("userId", data.id);
                 localStorage.setItem("userRole", data.role);
                 localStorage.setItem("username", data.username);
 
-                console.log("Giriş Başarılı! ID:", data.id, "Rol:", data.role);
-
-                // Yönlendirme
                 if (data.role === 'admin') {
                     navigate('/admin-panel');
                 } else {
                     navigate('/user-panel');
                 }
             } else {
-                // BAŞARISIZ: Backend'den gelen hata mesajını göster
                 setError(data.message || 'Giriş başarısız.');
             }
         } catch (err) {
-            console.error(err);
-            setError('Sunucuya bağlanılamadı. Backend çalışıyor mu?');
+            setError('Sunucuya bağlanılamadı.');
         } finally {
             setIsLoading(false);
         }
@@ -60,62 +49,95 @@ const Login = () => {
             justifyContent: 'center',
             alignItems: 'center',
             height: '100vh',
-            backgroundColor: '#f0f2f5'
+            background: 'linear-gradient(135deg, #667eea, #764ba2)'
         }}>
             <div style={{
-                padding: '40px',
-                backgroundColor: 'white',
-                borderRadius: '8px',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                width: '350px',
+                padding: '45px 40px',
+                backgroundColor: '#ffffff',
+                borderRadius: '16px',
+                boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
+                width: '360px',
                 textAlign: 'center'
             }}>
-                <h2 style={{ marginBottom: '20px', color: '#333' }}>Kargo Sistemi</h2>
+                <h1 style={{
+                    marginBottom: '8px',
+                    color: '#333',
+                    fontSize: '26px',
+                    fontWeight: '700'
+                }}>
+                    🚚 Kargo Sistemi Uygulamasına Hoşgeldiniz
+                </h1>
 
-                <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                <p style={{
+                    marginBottom: '30px',
+                    color: '#777',
+                    fontSize: '14px'
+                }}>
+                    Lütfen hesabınıza giriş yapın
+                </p>
 
+                <form
+                    onSubmit={handleLogin}
+                    style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
+                >
                     <input
                         type="text"
-                        placeholder="Kullanıcı Adı (admin / musteri)"
+                        placeholder="Kullanıcı Adı"
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
-                        style={{ padding: '12px', border: '1px solid #ccc', borderRadius: '4px' }}
+                        style={{
+                            padding: '14px',
+                            borderRadius: '10px',
+                            border: '1px solid #ddd',
+                            fontSize: '14px',
+                            outline: 'none'
+                        }}
                     />
 
                     <input
                         type="password"
-                        placeholder="Şifre (123)"
+                        placeholder="Şifre"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        style={{ padding: '12px', border: '1px solid #ccc', borderRadius: '4px' }}
+                        style={{
+                            padding: '14px',
+                            borderRadius: '10px',
+                            border: '1px solid #ddd',
+                            fontSize: '14px',
+                            outline: 'none'
+                        }}
                     />
 
                     <button
                         type="submit"
                         disabled={isLoading}
                         style={{
-                            padding: '12px',
-                            backgroundColor: isLoading ? '#ccc' : '#007bff',
+                            marginTop: '10px',
+                            padding: '14px',
+                            background: isLoading
+                                ? '#b0b0b0'
+                                : 'linear-gradient(135deg, #667eea, #5a67d8)',
                             color: 'white',
                             border: 'none',
-                            borderRadius: '4px',
+                            borderRadius: '10px',
+                            fontSize: '15px',
+                            fontWeight: '600',
                             cursor: isLoading ? 'not-allowed' : 'pointer',
-                            fontWeight: 'bold'
+                            transition: 'all 0.3s ease'
                         }}
                     >
                         {isLoading ? 'Giriş Yapılıyor...' : 'Giriş Yap'}
                     </button>
-
                 </form>
 
                 {error && (
                     <div style={{
-                        marginTop: '15px',
-                        padding: '10px',
-                        backgroundColor: '#ffebee',
-                        color: '#c62828',
-                        borderRadius: '4px',
-                        fontSize: '14px'
+                        marginTop: '20px',
+                        padding: '12px',
+                        backgroundColor: '#fdecea',
+                        color: '#d32f2f',
+                        borderRadius: '8px',
+                        fontSize: '13px'
                     }}>
                         {error}
                     </div>

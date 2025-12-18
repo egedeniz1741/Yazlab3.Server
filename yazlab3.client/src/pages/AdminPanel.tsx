@@ -30,6 +30,8 @@ interface DeliveryRoute {
     stops: StopDetail[];
 }
 
+
+
 const AdminPanel = () => {
     const navigate = useNavigate();
 
@@ -162,6 +164,14 @@ const AdminPanel = () => {
     const stats = calculateStats();
     const vehicleNames = [...new Set(allRoutes.map(r => r.vehicle.name))];
 
+    const handleLogout = () => {
+        if (window.confirm("Çıkış yapmak istiyor musunuz?")) {
+            localStorage.clear();
+            navigate('/');
+        }
+    };
+
+
     return (
         <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px', backgroundColor: '#f4f6f9', minHeight: '100vh', position: 'relative' }}>
 
@@ -186,8 +196,23 @@ const AdminPanel = () => {
                     <button onClick={fetchMatrix} style={{ padding: '8px 15px', backgroundColor: '#f39c12', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>📏 Mesafeler</button>
 
                     <div style={{ width: '1px', height: '25px', backgroundColor: '#ddd' }}></div>
+
                     <button onClick={() => navigate('/admin-panel/add-user')} style={{ padding: '8px 15px', backgroundColor: '#3498db', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>➕ Kullanıcı</button>
-                    <button onClick={() => navigate('/')} style={{ padding: '8px 15px', backgroundColor: '#95a5a6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Çıkış</button>
+                    <button
+                        onClick={handleLogout}
+                        style={{
+                            padding: '8px 15px',
+                            backgroundColor: '#95a5a6',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '6px',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        🚪 Çıkış
+                    </button>
+
+
                 </div>
             </div>
 

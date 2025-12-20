@@ -16,7 +16,7 @@ namespace Yazlab3.Controllers
             _context = context;
         }
 
-        // GET: api/vehicles
+        
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Vehicle>>> GetVehicles()
         {

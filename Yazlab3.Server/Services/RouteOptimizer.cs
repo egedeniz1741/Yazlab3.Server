@@ -6,35 +6,58 @@ namespace Yazlab3.Services
     {
         private const double EarthRadiusKm = 6371;
 
-        // UMUTTEPE KOORDİNATLARI (SABİT HEDEF)
+     
         private const double UmuttepeLat = 40.821768;
         private const double UmuttepeLng = 29.923476;
 
-        // --- 1. AKILLI MESAFE HESABI (KÖRFEZ MANTIĞI) ---
+        
+        private const double BridgeNorthLat = 40.7745;
+        private const double BridgeNorthLng = 29.5295;
+   
+        private const double BridgeSouthLat = 40.7410;
+        private const double BridgeSouthLng = 29.5110;
+        
+        private const double BridgeDistanceKm = 4.0;
+
+  
+        private const double IzmitHubLat = 40.7654;
+        private const double IzmitHubLng = 29.9408;
+
+      
         public double CalculateDistance(double lat1, double lon1, double lat2, double lon2)
         {
-            // İzmit Merkez (Körfez Geçişi İçin Hub)
-            double hubLat = 40.7654;
-            double hubLng = 29.9408;
+            bool isSourceNorth = IsNorthSide(lat1);
+            bool isTargetNorth = IsNorthSide(lat2);
 
-            bool isSourceNorth = IsNorthSide(lat1, lon1);
-            bool isTargetNorth = IsNorthSide(lat2, lon2);
-            bool isSourceSouth = IsSouthSide(lat1, lon1);
-            bool isTargetSouth = IsSouthSide(lat2, lon2);
-
-            // Körfez geçişi varsa İzmit üzerinden dolaş
-            if ((isSourceNorth && isTargetSouth) || (isSourceSouth && isTargetNorth))
+          
+            if (isSourceNorth == isTargetNorth)
             {
-                double distToHub = GetHaversineDistance(lat1, lon1, hubLat, hubLng);
-                double distFromHub = GetHaversineDistance(hubLat, hubLng, lat2, lon2);
-                return (distToHub + distFromHub) * 1.2;
+                return GetHaversineDistance(lat1, lon1, lat2, lon2) * 1.2; 
             }
 
-            return GetHaversineDistance(lat1, lon1, lat2, lon2) * 1.3;
+           
+            double distToIzmit = GetHaversineDistance(lat1, lon1, IzmitHubLat, IzmitHubLng);
+            double distFromIzmit = GetHaversineDistance(IzmitHubLat, IzmitHubLng, lat2, lon2);
+            double totalViaIzmit = (distToIzmit + distFromIzmit) * 1.2;
+
+           
+            double northPointLat = isSourceNorth ? lat1 : lat2;
+            double northPointLng = isSourceNorth ? lon1 : lon2;
+            double southPointLat = isSourceNorth ? lat2 : lat1;
+            double southPointLng = isSourceNorth ? lon2 : lon1;
+
+            double distToBridgeNorth = GetHaversineDistance(northPointLat, northPointLng, BridgeNorthLat, BridgeNorthLng);
+            double distToBridgeSouth = GetHaversineDistance(southPointLat, southPointLng, BridgeSouthLat, BridgeSouthLng);
+
+           
+            double totalViaBridge = (distToBridgeNorth * 1.2) + BridgeDistanceKm + (distToBridgeSouth * 1.2);
+
+           
+            return Math.Min(totalViaIzmit, totalViaBridge);
         }
 
-        private bool IsNorthSide(double lat, double lng) => lat > 40.745 && lng < 29.90;
-        private bool IsSouthSide(double lat, double lng) => lat <= 40.745 && lng < 29.90;
+       
+        private bool IsNorthSide(double lat) => lat > 40.758;
 
         private double GetHaversineDistance(double lat1, double lon1, double lat2, double lon2)
         {
@@ -46,10 +69,9 @@ namespace Yazlab3.Services
         }
         private double DegreesToRadians(double degrees) => degrees * Math.PI / 180;
 
-        // --- 2. YÜKLEME (KNAPSACK) ---
+    
         public List<CargoRequest> KnapsackLoader(List<CargoRequest> cargoList, double vehicleCapacity)
         {
-            // (Knapsack kodu aynı kalıyor, kısalık için özet geçiyorum, aynısını kullan)
             int n = cargoList.Count;
             int capacity = (int)vehicleCapacity;
             int[] weights = cargoList.Select(c => (int)Math.Ceiling(c.WeightKg)).ToArray();
@@ -75,16 +97,14 @@ namespace Yazlab3.Services
             return selected;
         }
 
-        // --- 3. ROTA OPTİMİZASYONU (TOPLAMA MODELİ) ---
-        // ARTIK DEPO YOK. İlk kargo noktası başlangıçtır.
         public List<CargoRequest> OptimizeRoute(List<CargoRequest> cargoLoad, double startLat, double startLng)
         {
             if (cargoLoad.Count == 0) return cargoLoad;
 
-            // En Yakın Komşu ile sırala
+       
             var initialRoute = NearestNeighborCollection(cargoLoad);
 
-            // 2-Opt ile iyileştir
+          
             var optimizedRoute = ApplyTwoOpt(initialRoute);
 
             return optimizedRoute;
@@ -95,12 +115,12 @@ namespace Yazlab3.Services
             var route = new List<CargoRequest>();
             var remaining = new List<CargoRequest>(cargoLoad);
 
-            // İLK DURAK MANTIĞI:
-            // Listede gelen ilk kargoyu başlangıç noktası kabul et.
-            // (Veya en uzaktakini seçebilirsin ama ilk gelen mantıklıdır)
-            var current = remaining[0];
+         
+
+            var current = remaining.OrderBy(c => c.TargetStation.Longitude).First();
+
             route.Add(current);
-            remaining.RemoveAt(0);
+            remaining.Remove(current);
 
             while (remaining.Count > 0)
             {
@@ -125,7 +145,6 @@ namespace Yazlab3.Services
             double dist = 0;
             if (route.Count == 0) return 0;
 
-            // Duraklar arası mesafe
             for (int i = 0; i < route.Count - 1; i++)
             {
                 var s1 = route[i].TargetStation;
@@ -133,7 +152,6 @@ namespace Yazlab3.Services
                 dist += CalculateDistance((double)s1.Latitude, (double)s1.Longitude, (double)s2.Latitude, (double)s2.Longitude);
             }
 
-            // SON DURAKTAN -> UMUTTEPE'YE GİDİŞ
             var last = route.Last().TargetStation;
             dist += CalculateDistance((double)last.Latitude, (double)last.Longitude, UmuttepeLat, UmuttepeLng);
 
@@ -144,7 +162,10 @@ namespace Yazlab3.Services
         {
             bool improvement = true;
             var bestRoute = new List<CargoRequest>(route);
-            while (improvement)
+            int maxIterations = 50; 
+            int iter = 0;
+
+            while (improvement && iter < maxIterations)
             {
                 improvement = false;
                 for (int i = 0; i < bestRoute.Count - 1; i++)
@@ -158,6 +179,7 @@ namespace Yazlab3.Services
                         }
                     }
                 }
+                iter++;
             }
             return bestRoute;
         }

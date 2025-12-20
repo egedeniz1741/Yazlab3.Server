@@ -1,5 +1,4 @@
-﻿// Models/RouteStop.cs
-// Rotadaki her bir durağı temsil eder (Örn: 1. durak Gebze, 2. durak Dilovası)
+﻿
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Yazlab3.Models
@@ -14,8 +13,8 @@ namespace Yazlab3.Models
         [ForeignKey("StationId")]
         public virtual Station Station { get; set; }
 
-        public int VisitOrder { get; set; } // 1, 2, 3...
+        public int VisitOrder { get; set; } 
 
-        public double LoadedCargoWeight { get; set; } // O durakta indirilen yük miktarı (İsteğe bağlı analiz için)
+        public double LoadedCargoWeight { get; set; } 
     }
 }

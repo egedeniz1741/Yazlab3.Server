@@ -17,14 +17,14 @@ namespace Yazlab3.Controllers
             _context = context;
         }
 
-        // POST: api/scenario/1
+     
         [HttpPost("1")]
         public async Task<IActionResult> LoadScenario1()
         {
       
             var stations = await _context.Stations.ToListAsync();
 
-            // PDF Senaryo 1 Verileri
+       
             var scenarioData = new List<dynamic>
             {
                 new { Name = "Başiskele", Count = 10, Weight = 120 },
@@ -41,7 +41,7 @@ namespace Yazlab3.Controllers
                 new { Name = "İzmit", Count = 14, Weight = 160 }
             };
 
-            int userId = 1; // Varsayılan Admin kullanıcısı (veya ilk user)
+            int userId = 1; 
             if (_context.Users.Any()) userId = _context.Users.First().Id;
 
             foreach (var item in scenarioData)
@@ -56,7 +56,7 @@ namespace Yazlab3.Controllers
                         CargoCount = item.Count,
                         WeightKg = item.Weight,
                         DeliveryDate = DateTime.Now,
-                        IsProcessed = false // Henüz işlenmedi, algoritmaya girecek
+                        IsProcessed = false 
                     });
                 }
             }
@@ -64,9 +64,7 @@ namespace Yazlab3.Controllers
             await _context.SaveChangesAsync();
             return Ok("Senaryo 1 verileri başarıyla yüklendi! Şimdi optimizasyonu çalıştırabilirsin.");
         }
-        // ... (Mevcut LoadScenario1 ve ResetSystem metodları kalsın) ...
-
-        // SENARYO 2: (PDF Sayfa 3'teki Tablo)
+   
         [HttpPost("2")]
         public async Task<IActionResult> LoadScenario2()
         {
@@ -78,13 +76,13 @@ namespace Yazlab3.Controllers
                 new { Name = "Derince", Count = 5, Weight = 100 },
                 new { Name = "Gebze", Count = 8, Weight = 120 },
                 new { Name = "İzmit", Count = 20, Weight = 160 }
-                // Diğer ilçeler 0 olduğu için eklemiyoruz
+                
             };
             await AddScenarioData(data);
             return Ok("Senaryo 2 yüklendi (Toplam 905 kg).");
         }
 
-        // SENARYO 3: (Ağırlıklı olarak Gebze, Dilovası - Kapasite Aşımı Testi)
+    
         [HttpPost("3")]
         public async Task<IActionResult> LoadScenario3()
         {
@@ -99,7 +97,7 @@ namespace Yazlab3.Controllers
             return Ok("Senaryo 3 yüklendi (Toplam 2700 kg - Kiralık Araç Gerekecek!).");
         }
 
-        // SENARYO 4: (Az sayıda kargo, maliyet testi)
+        
         [HttpPost("4")]
         public async Task<IActionResult> LoadScenario4()
         {
@@ -116,7 +114,7 @@ namespace Yazlab3.Controllers
             return Ok("Senaryo 4 yüklendi (Toplam 1550 kg).");
         }
 
-        // Yardımcı Metot (Kod tekrarını önlemek için)
+        
         private async Task AddScenarioData(List<dynamic> scenarioData)
         {
             var stations = await _context.Stations.ToListAsync();
@@ -141,26 +139,23 @@ namespace Yazlab3.Controllers
             }
             await _context.SaveChangesAsync();
         }
-        // ... LoadScenario1 metodu üstte kalsın ...
+        
 
         [HttpDelete("reset")]
         public async Task<IActionResult> ResetSystem()
         {
-            // 1. Mevcut Aktif Rotaları Bul
+          
             var activeRoutes = await _context.DeliveryRoutes
                 .Where(r => !r.IsArchived)
                 .ToListAsync();
 
-            // 2. Hepsini "Arşivlendi" olarak işaretle (SİLME YOK!)
+            
             foreach (var route in activeRoutes)
             {
                 route.IsArchived = true;
             }
 
-            // 3. İşlenmemiş (Bekleyen) Kargoları Silelim mi? 
-            // Genelde "Temizle" denince harita boşalsın istenir.
-            // Bekleyen kargoları SİLMİYORUZ, kalsınlar ki bir sonraki hesaplamaya dahil olsunlar.
-            // Sadece "İşlenmiş" olanlar zaten rotayla gittiği için sorun yok.
+      
 
             await _context.SaveChangesAsync();
             return Ok(new { message = "Sistem temizlendi, eski rotalar arşive taşındı." });

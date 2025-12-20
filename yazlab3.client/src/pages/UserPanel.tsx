@@ -2,11 +2,11 @@
 import { useNavigate } from 'react-router-dom';
 import MapDisplay from '../Components/MapDisplay';
 
-// --- TİP TANIMLAMALARI ---
+
 interface Station { id: number; name: string; latitude: number; longitude: number; }
 interface MyCargo { id: number; targetStation: string; cargoCount: number; weightKg: number; date: string; status: string; }
 
-// Harita için Rota Formatı
+
 interface PreviewRoute {
     id: number;
     vehicle: { name: string; capacityKg: number; isRented: boolean; rentalCost: number; };
@@ -23,26 +23,26 @@ interface PreviewRoute {
 const UserPanel = () => {
     const navigate = useNavigate();
 
-    // --- STATE'LER ---
+
     const [stations, setStations] = useState<Station[]>([]);
     const [myCargos, setMyCargos] = useState<MyCargo[]>([]);
 
-    // Sepet (Seçilen İstasyonlar)
+  
     const [selectedStations, setSelectedStations] = useState<Station[]>([]);
 
-    // Form Girdileri
+ 
     const [cargoCount, setCargoCount] = useState(0);
     const [weight, setWeight] = useState(0);
     const [message, setMessage] = useState("");
     const [isSuccess, setIsSuccess] = useState(false);
 
-    // Harita Önizleme Verisi
+
     const [previewRoutes, setPreviewRoutes] = useState<PreviewRoute[]>([]);
 
     useEffect(() => {
-        // İstasyonları Çek
+     
         fetch('/api/stations').then(res => res.json()).then(data => setStations(data));
-        // Kullanıcının Geçmiş Kargolarını Çek
+       
         fetchMyCargos();
     }, []);
 
@@ -58,7 +58,7 @@ const UserPanel = () => {
         }
     };
 
-    // --- LİSTEYE İSTASYON EKLEME ---
+
     const handleAddStationToList = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const stationId = Number(e.target.value);
         if (!stationId) return;
@@ -66,20 +66,20 @@ const UserPanel = () => {
         const stationToAdd = stations.find(s => s.id === stationId);
 
         if (stationToAdd) {
-            // Aynı istasyonu tekrar eklemesin
+           
             if (!selectedStations.some(s => s.id === stationId)) {
                 setSelectedStations([...selectedStations, stationToAdd]);
             }
         }
-        e.target.value = ""; // Seçimi sıfırla
+        e.target.value = ""; 
     };
 
-    // --- LİSTEDEN ÇIKARMA ---
+  
     const handleRemoveStation = (id: number) => {
         setSelectedStations(selectedStations.filter(s => s.id !== id));
     };
 
-    // --- KARGO İPTAL ETME (SİLME) ---
+   
     const handleCancelCargo = async (id: number) => {
         if (!window.confirm("Bu kargo talebini iptal etmek istediğinize emin misiniz?")) return;
 
@@ -87,7 +87,7 @@ const UserPanel = () => {
             const res = await fetch(`/api/CargoRequests/${id}`, { method: 'DELETE' });
             if (res.ok) {
                 alert("✅ Talep başarıyla iptal edildi.");
-                fetchMyCargos(); // Listeyi güncelle
+                fetchMyCargos(); 
             } else {
                 const data = await res.json();
                 alert("❌ " + (data.message || "Hata oluştu."));
@@ -95,14 +95,14 @@ const UserPanel = () => {
         } catch (err) { alert("Sunucu hatası."); }
     };
 
-    // --- HARİTA GÜNCELLEME (Otomatik) ---
+   
     useEffect(() => {
         if (selectedStations.length === 0) {
             setPreviewRoutes([]);
             return;
         }
 
-        // Seçilen istasyonları sırayla gezen sanal bir rota oluştur
+     
         const dummyRoute: PreviewRoute = {
             id: 999,
             vehicle: { name: "Planlanan Rota", capacityKg: 0, isRented: false, rentalCost: 0 },
@@ -119,7 +119,7 @@ const UserPanel = () => {
         setPreviewRoutes([dummyRoute]);
     }, [selectedStations]);
 
-    // --- TALEPLERİ GÖNDER ---
+   
     const handleSubmitAll = async (e: React.FormEvent) => {
         e.preventDefault();
         setMessage("");
@@ -135,7 +135,7 @@ const UserPanel = () => {
 
         try {
             let successCount = 0;
-            // Her istasyon için ayrı kayıt açıyoruz
+           
             for (const station of selectedStations) {
                 const newRequest = {
                     userId: Number(storedUserId),
@@ -177,7 +177,7 @@ const UserPanel = () => {
     return (
         <div style={{ display: 'flex', height: '100vh', flexDirection: 'row', backgroundColor: '#f4f6f9' }}>
 
-            {/* SOL PANEL */}
+        
             <div style={{ width: '400px', padding: '30px', backgroundColor: '#fff', borderRight: '1px solid #ddd', display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto' }}>
 
                 <div style={{ borderBottom: '1px solid #eee', paddingBottom: '15px' }}>
@@ -185,13 +185,13 @@ const UserPanel = () => {
                     <p style={{ margin: '5px 0 0 0', color: '#7f8c8d', fontSize: '14px' }}>Toplama noktalarını seçerek rotanızı oluşturun.</p>
                 </div>
 
-                {/* --- ROTA OLUŞTURMA FORMU --- */}
+              
                 <div style={{ padding: '20px', border: '1px solid #e0e0e0', borderRadius: '10px', backgroundColor: '#fafafa' }}>
                     <h4 style={{ margin: '0 0 15px 0', color: '#34495e' }}>📍 Yeni Talep Oluştur</h4>
 
                     <form onSubmit={handleSubmitAll} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
 
-                        {/* 1. Durak Ekleme */}
+                     
                         <div>
                             <label style={{ fontWeight: 'bold', fontSize: '13px', display: 'block', marginBottom: '5px' }}>Durak Ekle:</label>
                             <select
@@ -204,7 +204,7 @@ const UserPanel = () => {
                             </select>
                         </div>
 
-                        {/* 2. Seçilen Duraklar Listesi */}
+                       
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', minHeight: '30px' }}>
                             {selectedStations.length === 0 && <span style={{ fontSize: '12px', color: '#999', fontStyle: 'italic' }}>Henüz durak seçilmedi.</span>}
                             {selectedStations.map((s, index) => (
@@ -215,7 +215,7 @@ const UserPanel = () => {
                             ))}
                         </div>
 
-                        {/* 3. Yük Bilgileri */}
+                      
                         <div style={{ borderTop: '1px solid #eee', paddingTop: '15px', marginTop: '5px' }}>
                             <div style={{ display: 'flex', gap: '10px' }}>
                                 <div style={{ flex: 1 }}>
@@ -234,7 +234,7 @@ const UserPanel = () => {
                     {message && <div style={{ marginTop: '15px', padding: '10px', borderRadius: '5px', backgroundColor: isSuccess ? '#d4edda' : '#f8d7da', color: isSuccess ? '#155724' : '#721c24', fontSize: '13px', textAlign: 'center' }}>{message}</div>}
                 </div>
 
-                {/* GEÇMİŞ TABLOSU (İPTAL BUTONLU) */}
+               
                 <div style={{ flex: 1, minHeight: '150px' }}>
                     <h4 style={{ margin: '0 0 10px 0', color: '#34495e' }}>📋 Bekleyen Taleplerim</h4>
                     <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #eee', borderRadius: '10px' }}>
@@ -272,7 +272,7 @@ const UserPanel = () => {
                 <button onClick={handleLogout} style={{ marginTop: 'auto', padding: '10px', backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Çıkış Yap</button>
             </div>
 
-            {/* SAĞ PANEL: HARİTA */}
+          
             <div style={{ flex: 1, padding: '20px' }}>
                 <div style={{ height: '100%', border: '2px solid #ddd', borderRadius: '12px', overflow: 'hidden', backgroundColor: 'white', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }}>
                     <MapDisplay externalRoutes={previewRoutes as any} />

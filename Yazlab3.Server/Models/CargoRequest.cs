@@ -8,13 +8,13 @@ namespace Yazlab3.Models
         public int UserId { get; set; }
 
         [ForeignKey("UserId")]
-        // DİKKAT: Buraya '?' ekledik (User? yaptık)
+     
         public virtual User? User { get; set; }
 
         public int TargetStationId { get; set; }
 
         [ForeignKey("TargetStationId")]
-        // DİKKAT: Buraya da '?' ekledik (Station? yaptık)
+       
         public virtual Station? TargetStation { get; set; }
 
         public int CargoCount { get; set; }
@@ -22,5 +22,6 @@ namespace Yazlab3.Models
 
         public DateTime DeliveryDate { get; set; }
         public bool IsProcessed { get; set; } = false;
+        public int? DeliveryRouteId { get; set; }
     }
 }

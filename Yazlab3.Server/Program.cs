@@ -3,13 +3,13 @@ using Yazlab3.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Veritabaný Baðlantýsý
+
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
 
-// 2. CORS Ýzni (Frontend portun 5173 görünüyor, ona izin veriyoruz)
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReactApp",
@@ -28,13 +28,13 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
     });
 builder.Services.AddScoped<Yazlab3.Services.RouteOptimizer>();
-// Swagger servislerini ekliyoruz
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-// Veritabaný Seed Ýþlemi (Otomatik veri ekleme)
+
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
@@ -50,7 +50,7 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-// 3. Middleware Sýralamasý (Burasý Çok Önemli)
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -59,7 +59,7 @@ if (app.Environment.IsDevelopment())
 
 
 
-// CORS komutu Authorization'dan ÖNCE gelmeli!
+
 app.UseCors("AllowReactApp");
 
 app.UseAuthorization();

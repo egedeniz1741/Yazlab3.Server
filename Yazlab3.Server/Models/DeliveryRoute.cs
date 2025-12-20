@@ -1,5 +1,4 @@
-﻿// Models/DeliveryRoute.cs
-// Bir aracın bir günlük seferini temsil eder.
+﻿
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -14,9 +13,9 @@ namespace Yazlab3.Models
         public DateTime RouteDate { get; set; }
 
         public decimal TotalDistanceKm { get; set; }
-        public decimal TotalCost { get; set; } // (Yol * 1) + Kiralama Bedeli
+        public decimal TotalCost { get; set; } 
 
-        // Bu rotadaki duraklar (Sırasıyla tutulacak)
+        
         public virtual ICollection<RouteStop> Stops { get; set; }
         public bool IsArchived { get; set; } = false;
     }

@@ -1,192 +1,166 @@
-﻿// src/pages/AddNewUser.tsx
-
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 
 const AddNewUser = () => {
     const navigate = useNavigate();
 
-    const [username, setUsername] = useState('');
-    const [password, setPassword] = useState('');
-    const [role, setRole] = useState('User');
+    
+    const [username, setUsername] = useState("");
+    const [password, setPassword] = useState("");
+    const [role, setRole] = useState("user");
 
-    const handleGoBack = () => {
-        navigate('/admin-panel');
-    };
+    const [message, setMessage] = useState("");
+    const [isSuccess, setIsSuccess] = useState(false);
 
-    const handleAddUser = async (e: React.FormEvent) => {
+    const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
+        setMessage("");
+        setIsSuccess(false);
 
         if (!username || !password) {
-            alert('Kullanıcı Adı ve Şifre boş bırakılamaz.');
+            setMessage("Kullanıcı adı ve şifre zorunludur.");
             return;
         }
 
-        const newUser = { username, password, role };
-
         try {
-            const response = await axios.post(
-                'http://localhost:5054/api/User',
-                newUser
-            );
+            const res = await fetch('/api/Users', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    username: username,
+                    password: password,
+                    role: role
+                })
+            });
 
-            if (response.status === 201 || response.status === 200) {
-                alert(`✅ Kullanıcı başarıyla eklendi! Rol: ${role}`);
-                setUsername('');
-                setPassword('');
-                setRole('User');
+            if (res.ok) {
+                setIsSuccess(true);
+                setMessage(" Kullanıcı başarıyla oluşturuldu!");
+                setUsername("");
+                setPassword("");
+                setRole("user");
+            } else {
+                setMessage(" Hata: Kayıt yapılamadı.");
             }
-        } catch (error: any) {
-            const msg =
-                error.response?.data?.message ||
-                'Sunucuya erişimde hata oluştu.';
-            alert(`❌ Hata: ${msg}`);
+        } catch (err) {
+            setMessage(" Sunucu hatası.");
         }
     };
 
     return (
-        <div style={pageStyle}>
-            <div style={cardStyle}>
-                {/* HEADER */}
-                <div style={headerStyle}>
-                    <div>
-                        <h2 style={titleStyle}>👤 Yeni Kullanıcı</h2>
-                        <p style={subtitleStyle}>Sisteme yeni kullanıcı ekle</p>
-                    </div>
-
-                    <button onClick={handleGoBack} style={backButtonStyle}>
-                        ⬅️ Geri
-                    </button>
+        <div style={styles.container}>
+            <div style={styles.formBox}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                    <h2 style={{ margin: 0, color: 'white', fontSize: '20px' }}> Yeni Kullanıcı</h2>
+                    <button onClick={() => navigate('/admin-panel')} style={styles.backButton}>⬅ Geri</button>
                 </div>
 
-                {/* FORM */}
-                <form onSubmit={handleAddUser} style={formStyle}>
+                <p style={{ color: '#bdc3c7', fontSize: '13px', marginBottom: '20px' }}>Sisteme yeni kullanıcı ekle.</p>
+
+                <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+
                     <div>
-                        <label style={labelStyle}>Kullanıcı Adı</label>
+                        <label style={styles.label}>Kullanıcı Adı</label>
                         <input
                             type="text"
                             value={username}
-                            onChange={(e) => setUsername(e.target.value)}
-                            style={inputStyle}
-                            placeholder="örn: berke123"
+                            onChange={e => setUsername(e.target.value)}
+                            style={styles.input}
                         />
                     </div>
 
                     <div>
-                        <label style={labelStyle}>Şifre</label>
+                        <label style={styles.label}>Şifre</label>
                         <input
-                            type="password"
+                            type="text"
                             value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            style={inputStyle}
-                            placeholder="••••••••"
+                            onChange={e => setPassword(e.target.value)}
+                            style={styles.input}
                         />
                     </div>
 
                     <div>
-                        <label style={labelStyle}>Rol</label>
+                        <label style={styles.label}>Rol</label>
                         <select
                             value={role}
-                            onChange={(e) => setRole(e.target.value)}
-                            style={inputStyle}
+                            onChange={e => setRole(e.target.value)}
+                            style={styles.select}
                         >
-                            <option value="User">User (Standart)</option>
-                            <option value="Admin">Admin (Yönetici)</option>
+                            <option value="user">User</option>
+                            <option value="admin">Admin</option>
                         </select>
                     </div>
 
-                    <button type="submit" style={saveButtonStyle}>
-                        💾 Kullanıcıyı Kaydet
-                    </button>
+                    <button type="submit" style={styles.saveButton}>💾 Kaydet</button>
                 </form>
+
+                {message && (
+                    <div style={{
+                        marginTop: '15px',
+                        padding: '10px',
+                        borderRadius: '6px',
+                        backgroundColor: isSuccess ? '#2ecc71' : '#e74c3c',
+                        color: 'white',
+                        fontSize: '13px',
+                        fontWeight: 'bold',
+                        textAlign: 'center'
+                    }}>
+                        {message}
+                    </div>
+                )}
             </div>
         </div>
     );
 };
 
-/* -------------------- STYLES -------------------- */
 
-const pageStyle: React.CSSProperties = {
-    minHeight: '100vh',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    background: 'linear-gradient(135deg, #667eea, #764ba2)',
-};
-
-const cardStyle: React.CSSProperties = {
-    width: '420px',
-    backgroundColor: '#ffffff',
-    borderRadius: '18px',
-    padding: '35px 30px',
-    boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
-};
-
-const headerStyle: React.CSSProperties = {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '25px',
-};
-
-const titleStyle: React.CSSProperties = {
-    margin: 0,
-    fontSize: '22px',
-    fontWeight: 700,
-    color: '#2d3748',
-};
-
-const subtitleStyle: React.CSSProperties = {
-    margin: '4px 0 0',
-    fontSize: '13px',
-    color: '#718096',
-};
-
-const formStyle: React.CSSProperties = {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '16px',
-};
-
-const labelStyle: React.CSSProperties = {
-    display: 'block',
-    marginBottom: '6px',
-    fontSize: '13px',
-    fontWeight: 600,
-    color: '#4a5568',
-};
-
-const inputStyle: React.CSSProperties = {
-    width: '100%',
-    padding: '14px',
-    borderRadius: '10px',
-    border: '1px solid #e2e8f0',
-    fontSize: '14px',
-    outline: 'none',
-    boxSizing: 'border-box',
-};
-
-const saveButtonStyle: React.CSSProperties = {
-    marginTop: '10px',
-    padding: '14px',
-    borderRadius: '12px',
-    border: 'none',
-    background: 'linear-gradient(135deg, #667eea, #5a67d8)',
-    color: '#fff',
-    fontSize: '15px',
-    fontWeight: 600,
-    cursor: 'pointer',
-};
-
-const backButtonStyle: React.CSSProperties = {
-    padding: '8px 14px',
-    backgroundColor: '#edf2f7',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontSize: '13px',
-    fontWeight: 600,
+const styles: { [key: string]: React.CSSProperties } = {
+    container: {
+      
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        margin: 0,
+        padding: 0,
+        overflow: 'hidden',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        background: 'linear-gradient(135deg, #2c3e50, #4ca1af)',
+        fontFamily: "'Segoe UI', sans-serif"
+    },
+    formBox: {
+        width: '100%',
+        maxWidth: '400px', 
+        padding: '30px',
+        backgroundColor: '#34495e',
+        borderRadius: '15px',
+        boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
+        border: '1px solid #465f75',
+        boxSizing: 'border-box' 
+    },
+    label: {
+        display: 'block', color: '#ecf0f1', fontSize: '13px', fontWeight: 'bold', marginBottom: '5px'
+    },
+    input: {
+        width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #576d7e',
+        backgroundColor: '#2c3e50', color: 'white', outline: 'none', fontSize: '14px', boxSizing: 'border-box'
+    },
+    select: {
+        width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #576d7e',
+        backgroundColor: '#2c3e50', color: 'white', outline: 'none', fontSize: '14px', boxSizing: 'border-box'
+    },
+    saveButton: {
+        width: '100%', padding: '12px', backgroundColor: '#3498db', color: 'white', border: 'none',
+        borderRadius: '6px', fontSize: '15px', fontWeight: 'bold', cursor: 'pointer', marginTop: '10px',
+        transition: '0.3s'
+    },
+    backButton: {
+        padding: '5px 10px', backgroundColor: '#95a5a6', color: 'white', border: 'none',
+        borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold'
+    }
 };
 
 export default AddNewUser;

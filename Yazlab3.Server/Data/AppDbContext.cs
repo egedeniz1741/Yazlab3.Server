@@ -20,11 +20,10 @@ namespace Yazlab3.Data
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            // İlişkiler ve özel ayarlar burada yapılabilir
+           
             base.OnModelCreating(modelBuilder);
 
-            // Örnek: Station silinirse ona bağlı route stoplar ne olsun?
-            // Şimdilik varsayılan ayarlarda bırakıyoruz.
+           
         }
     }
 }

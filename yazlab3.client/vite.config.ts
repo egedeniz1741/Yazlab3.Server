@@ -5,19 +5,19 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
     plugins: [react()],
     server: {
-        port: 5173, // Frontend portu
+        port: 5173, 
         proxy: {
-            // 1. Backend API İstekleri (Zaten çalışıyordu ama garanti olsun)
+            
             '/api': {
-                target: 'http://localhost:5054', // Backend adresi
+                target: 'http://localhost:5054', 
                 changeOrigin: true,
                 secure: false
             },
-            // 2. HARİTA İÇİN EKLENEN KISIM (CORS Çözümü)
+          
             '/osrm': {
-                target: 'http://localhost:5000', // Docker adresi
+                target: 'http://localhost:5000', 
                 changeOrigin: true,
-                rewrite: (path) => path.replace(/^\/osrm/, '') // "/osrm" silinir, gerisi gider
+                rewrite: (path) => path.replace(/^\/osrm/, '') 
             }
         }
     }

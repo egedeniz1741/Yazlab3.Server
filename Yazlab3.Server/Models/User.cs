@@ -11,14 +11,14 @@ namespace Yazlab3.Models
         public string Username { get; set; }
 
         [Required]
-        public string Password { get; set; } // Gerçek hayatta Hashlenmeli
+        public string Password { get; set; } 
 
         [Required]
-        public string Role { get; set; } = "User"; // "Admin" veya "User"
+        public string Role { get; set; } = "User"; 
 
         public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
 
-        // Kullanıcının kargo talepleri
+       
         public virtual ICollection<CargoRequest> CargoRequests { get; set; }
     }
 }

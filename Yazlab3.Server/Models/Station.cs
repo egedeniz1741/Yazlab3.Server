@@ -7,9 +7,9 @@ namespace Yazlab3.Models
     public class Station : BaseEntity
     {
         [Required]
-        public string Name { get; set; } // Örn: Gebze, İzmit
+        public string Name { get; set; } 
 
-        // MySQL'de koordinat hassasiyeti için decimal kullanılır
+      
         [Column(TypeName = "decimal(10, 7)")]
         public decimal Latitude { get; set; }
 

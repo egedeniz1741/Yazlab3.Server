@@ -7,19 +7,19 @@ namespace Yazlab3.Data
     {
         public static void Seed(AppDbContext context)
         {
-            // 1. Admin Kullanıcısını Kontrol Et
+          
             if (!context.Users.Any(u => u.Username == "admin"))
             {
                 context.Users.Add(new User { Username = "admin", Password = "123", Role = "Admin" });
             }
 
-            // 2. Müşteri Kullanıcısını Kontrol Et
+         
             if (!context.Users.Any(u => u.Username == "musteri"))
             {
                 context.Users.Add(new User { Username = "musteri", Password = "123", Role = "User" });
             }
 
-            // 3. İstasyonlar (Boşsa ekle)
+            
             if (!context.Stations.Any())
             {
                 var stations = new Station[]
@@ -40,7 +40,7 @@ namespace Yazlab3.Data
                 context.Stations.AddRange(stations);
             }
 
-            // 4. Araçlar (Boşsa ekle)
+        
             if (!context.Vehicles.Any())
             {
                 context.Vehicles.AddRange(
